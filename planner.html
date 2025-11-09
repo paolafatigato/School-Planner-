@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Planner scolastico</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.min.js"></script>
+
+
+</head>
+
+<body>
+
+  
+  
+<div id="grad1" class="gradiente grad1" style="opacity: 1;"></div>
+<div id="grad2" class="gradiente" style="opacity: 0;"></div>
+
+
+<div class="contenuto-fisso">
+
+<!-- Icona utente -->
+<div id="userIcon">
+  <div id="userImage"></div>
+  <i id="userFallback" class="fas fa-user-circle"></i>
+</div>
+
+
+
+<!-- Modale profilo -->
+<div id="modalProfilo" class="modal" style="display:none;">
+  <div class="modal-content">
+    <span class="close" onclick="chiudiModale()">&times;</span>
+    <h2>Il tuo profilo</h2>
+
+    <label>Nome:</label>
+    <input type="text" id="inputNome" placeholder="Facoltativo"><br>
+
+    <label>Cognome:</label>
+    <input type="text" id="inputCognome" placeholder="Facoltativo"><br>
+
+    <label>Scuola:</label>
+    <input type="text" id="inputScuola" placeholder="Facoltativo"><br>
+
+    <label>Materia 1:</label>
+    <input type="text" id="materia1" required placeholder="Es: Inglese"><br>
+
+    <label>Materia 2:</label>
+    <input type="text" id="materia2"><br>
+
+    <label>Materia 3:</label>
+    <input type="text" id="materia3"><br>
+
+<h3>Scegli icona e colore</h3>
+
+<!-- SCELTA ICONE -->
+<div id="iconeDisponibili" style="display: flex; gap: 10px; margin-bottom: 10px;">
+  <div class="icona-opzione" data-src="img/iconaprof.png" onclick="selezionaIcona(this)"></div>
+  <div class="icona-opzione" data-src="img/iconaprof1.png" onclick="selezionaIcona(this)"></div>
+  <div class="icona-opzione" data-src="img/iconaprof2.png" onclick="selezionaIcona(this)"></div>
+  <div class="icona-opzione" data-src="img/iconaprof3.png" onclick="selezionaIcona(this)"></div>
+  <div class="icona-opzione" data-src="img/iconaprof4.png" onclick="selezionaIcona(this)"></div>
+  <div class="icona-opzione" data-src="img/iconaprof5.png" onclick="selezionaIcona(this)"></div>
+  <div class="icona-opzione" data-src="img/iconaprof6.png" onclick="selezionaIcona(this)"></div>
+  <div class="icona-opzione" data-src="img/iconaprof7.png" onclick="selezionaIcona(this)"></div>
+  <div class="icona-opzione" data-src="img/iconaprof8.png" onclick="selezionaIcona(this)"></div>
+  <div class="icona-opzione" data-src="img/iconaprof9.png" onclick="selezionaIcona(this)"></div>
+  <div class="icona-opzione" data-src="img/iconaprof10.png" onclick="selezionaIcona(this)"></div>
+</div>
+
+<!-- SCELTA COLORI -->
+<div id="coloriDisponibili" style="display: flex; gap: 10px;">
+  <div class="colore-opzione" style="background-color: #daaafc;" onclick="selezionaColore(this)"></div>
+  <div class="colore-opzione" style="background-color: #5A00E0;" onclick="selezionaColore(this)"></div>
+  <div class="colore-opzione" style="background-color: #FF4DA6;" onclick="selezionaColore(this)"></div>
+  <div class="colore-opzione" style="background-color: hsla(346,100%,62%,1);" onclick="selezionaColore(this)"></div>
+  <div class="colore-opzione" style="background-color: #ff6546;" onclick="selezionaColore(this)"></div>
+  <div class="colore-opzione" style="background-color: hsla(29,100%,62%,1);" onclick="selezionaColore(this)"></div>
+  <div class="colore-opzione" style="background-color: #333;" onclick="selezionaColore(this)"></div>
+</div>
+
+
+
+    <button onclick="salvaProfilo()">Salva</button>
+  </div>
+</div>
+
+
+      <h1 id="titoloPlanner">Planner scolastico</h1>
+  
+
+      <label for="dataInizio">Data di partenza:</label>
+      <button id="tornaCalendario" onclick="window.location.href='index.html'">
+Torna al Calendario
+      </button>
+
+      <div class="pulsanti-secondari">
+
+          <div class="tooltip-container flex-grow">
+            <button class="clear" onclick="ripetiMateriePerAnnoIntero()">
+  <img src="img/repeat.png" alt="Ripeti" style="height: 22px; vertical-align: middle;" />
+</button>
+            <span class="tooltip-text" id="testoRipeti">Ripeti le classi e materie che hai inserito in questa settimana, fino al 30 giugno.</span>
+          </div>
+
+          <div class="tooltip-container flex-grow">
+            <button id="bottone-orariosettimanale" onclick="mostraOrarioSettimana()">Orario settimanale</button>
+            <span class="tooltip-text">Mostra tutte le classi della settimana corrente.</span>
+          </div>
+
+
+          <div class="tooltip-container">
+            <button class="clear" onclick="cancellaDaSettimanaCorrente()">
+              <i class="fas fa-broom"></i>
+            </button>
+            <span class="tooltip-text">Cancella da qui in poi</span>
+          </div>
+
+          <div class="tooltip-container">
+            <button class="clear" id="clearStorage" onclick="clearDati()">
+              <i class="fas fa-skull"></i>
+            </button>
+            <span class="tooltip-text">Cancella TUTTO</span>
+          </div>
+          
+      </div>
+
+
+</div>
+
+
+
+
+        <div class="wrapper">
+        
+          <!-- scroll solo sulla tabella -->
+          <div class="scroll-wrapper">
+            <div class="scroll-inner">
+              <div id="container"></div>
+            </div>
+          </div>
+
+          <div id="risultati"></div> <!-- nuovo contenitore fisso per risultati -->
+        </div>
+
+    </div>  
+
+          <script src="script.js"></script>
+          <script src="localstorage_planner.js"></script>
+
+
+              <script>
+              // Recupera la data selezionata dal calendario
+              const dataInizio = new Date(localStorage.getItem('dataSelezionata'));
+              
+              if (isNaN(dataInizio)) {
+                alert("Errore: nessuna data selezionata. Torna al calendario.");
+                window.location.href = "index.html";
+              }
+
+              // Funzione per ottenere le date delle 3 settimane a partire dalla data selezionata
+              function getSettimaneDaData(data) {
+                const settimane = [];
+                for (let i = 0; i < 1; i++) {
+                  const settimana = new Date(data);
+                  settimana.setDate(data.getDate() + i * 7);
+                  settimane.push(settimana.toISOString().slice(0, 10));
+                }
+                return settimane;
+              }
+
+              const settimane = getSettimaneDaData(dataInizio);
+
+              // Mostra le date in console o dove vuoi inserirle nel DOM
+              console.log("Settimane:", settimane);
+
+              // Se vuoi mostrare la prima data nel titolo, ad esempio
+              const titolo = document.getElementById("titoloPlanner");
+              if (titolo) {
+                titolo.textContent = "Planner";
+              }
+
+              document.addEventListener("DOMContentLoaded", () => {
+              creaSettimane();
+            });
+
+            </script>
+
+<!-- Toolbar mobile flottante per Quill -->
+<div id="floating-quill-toolbar" aria-hidden="true" style="display:none"></div>
+
+
+</body>
+</html>
