@@ -6,6 +6,36 @@
 const giorniSettimana = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
 const orari = [8, 9, 10, 11, 12, 13];
 const colonne = ["classe", "materia", "programma", "compiti"];
+// ===============================
+// SYNC ONLINE CON GOOGLE SHEETS
+// ===============================
+
+// URL della tua Web App di Apps Script
+const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbw1Mby1jXEObIA1mWQg-wjwP540MYnMcoaJuHxLWGqsGNP6cZNziK_bCoMA4ZbsoZ-KvA/exec";
+
+function salvaOnline(key, value) {
+  if (!GOOGLE_SHEET_URL) return;
+
+  fetch(GOOGLE_SHEET_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key, value })
+  }).catch(err => {
+    console.error("Errore salvataggio online", err);
+  });
+}
+
+function leggiOnline(key) {
+  if (!GOOGLE_SHEET_URL) return Promise.resolve(null);
+
+  return fetch(GOOGLE_SHEET_URL + "?key=" + encodeURIComponent(key))
+    .then(res => res.text())
+    .then(text => text || null)
+    .catch(err => {
+      console.error("Errore lettura online", err);
+      return null;
+    });
+}
 
 // ===============================
 // Colori sfondo e testo sincronizzati (con classi diverse)
@@ -219,23 +249,23 @@ function initQuillEditors() {
     const key = textarea.dataset.key;
     const parent = textarea.parentElement;
 
-// 1) crea il wrapper + editor, ma NON rimuovere la textarea
+    // 1) crea wrapper + editor, ma NON rimuovere la textarea
     const wrapper = document.createElement('div');
     wrapper.className = 'quill-wrapper';
     const editor = document.createElement('div');
     editor.className = 'quill-editor';
 
- // Inserisci l'editor PRIMA della textarea e poi nascondi la textarea
     parent.insertBefore(wrapper, textarea);
     wrapper.appendChild(editor);
-    // nascondo ma la mantengo nel DOM per compatibilità
+
+    // nascondo la textarea ma la tengo nel DOM
     textarea.style.position = 'absolute';
     textarea.style.left = '-10000px';
     textarea.style.width = '1px';
     textarea.style.height = '1px';
     textarea.style.opacity = '0';
 
-    // 2) toolbar unica
+    // 2) toolbar
     const toolbarOptions = [
       [{ list: 'check' }],                      // checklist
       ['bold', 'italic'],                       // grassetto/corsivo
@@ -247,35 +277,44 @@ function initQuillEditors() {
       modules: { toolbar: toolbarOptions }
     });
 
-// 3) inizializza contenuto partendo dalla textarea (HTML se presente, altrimenti testo)
+    // 3) inizializza contenuto partendo da localStorage o textarea
     const saved = key ? localStorage.getItem(key) : null;
     if (saved && saved.trim()) {
       quill.clipboard.dangerouslyPasteHTML(saved);
-      textarea.value = saved; // allinea subito anche la textarea
+      textarea.value = saved;
     } else if (textarea.value && textarea.value.trim()) {
-      // se hai testo semplice salvato in passato
       quill.clipboard.dangerouslyPasteHTML(textarea.value);
     }
 
-    // 4) sincronizza SEMPRE: Quill -> textarea (+ localStorage)
+    // 3b) se non c'è niente in locale, prova a leggere dal cloud
+    if (key && (!saved || !saved.trim())) {
+      leggiOnline(key).then(valoreCloud => {
+        if (valoreCloud && valoreCloud.trim()) {
+          quill.clipboard.dangerouslyPasteHTML(valoreCloud);
+          textarea.value = valoreCloud;
+          localStorage.setItem(key, valoreCloud);
+        }
+      });
+    }
+
+    // 4) sync Quill -> textarea -> localStorage + cloud
     const syncAll = () => {
       const html = quill.root.innerHTML;
-      textarea.value = html;                       // compatibilità con il tuo codice esistente
-      if (key) localStorage.setItem(key, html);    // mantieni anche lo storage
-      // Se in qualche punto ti serve anche il TESTO semplice:
-      // localStorage.setItem(key + ':text', quill.getText().trim());
+      textarea.value = html;
+      if (key) {
+        localStorage.setItem(key, html);
+        salvaOnline(key, html);
+      }
     };
 
     quill.on('text-change', syncAll);
 
-    // 5) mostra la toolbar SOLO quando l'editor ha focus (desktop + mobile)
+    // 5) mostra la toolbar solo quando l'editor ha focus
     quill.on('selection-change', (range) => {
       if (range) {
         wrapper.classList.add('focus');
       } else {
-        // piccolo delay per consentire click sui controlli della toolbar
         setTimeout(() => {
-          // se non sto interagendo con la toolbar, chiudi
           if (!document.activeElement.closest('.ql-toolbar')) {
             wrapper.classList.remove('focus');
           }
@@ -286,10 +325,11 @@ function initQuillEditors() {
     textarea.dataset.quillified = '1';
     wrapper.dataset.key = key || '';
 
-    // 6) prima sincronizzazione (utile se caricato da textarea.value)
+    // prima sincronizzazione
     syncAll();
   });
 }
+
 
 
 function chiudiModale() {
@@ -710,14 +750,29 @@ function creaSettimane() {
 
           const giornoCompleto = dataCorrente.toISOString().split('T')[0];
           const chiave = `cella-${giornoCompleto}-${ora}-${colOriginale}`;
-          textarea.dataset.key = chiave;              // ⬅️ AGGIUNTO QUESTA
+textarea.dataset.key = chiave;
 
-          const valoreSalvato = localStorage.getItem(chiave);
-          if (valoreSalvato) textarea.value = valoreSalvato;
+// 1) prima prova a leggere da localStorage
+const valoreSalvato = localStorage.getItem(chiave);
+if (valoreSalvato) {
+  textarea.value = valoreSalvato;
+} else {
+  // 2) se è vuoto, prova a leggere dal cloud (Google Sheets)
+  leggiOnline(chiave).then(valoreCloud => {
+    if (valoreCloud) {
+      textarea.value = valoreCloud;
+      localStorage.setItem(chiave, valoreCloud);
+    }
+  });
+}
 
-          textarea.addEventListener("change", () => {
-            localStorage.setItem(chiave, textarea.value);
-          });
+// 3) ogni volta che cambia: salva locale + online
+textarea.addEventListener("change", () => {
+  const v = textarea.value;
+  localStorage.setItem(chiave, v);
+  salvaOnline(chiave, v);
+});
+
 
           textarea.setAttribute('data-settimana', Math.floor(giorniInseriti / 6));
           textarea.setAttribute('data-giorno', giorniInseriti % 6);
@@ -1324,4 +1379,5 @@ function spostaRisultatiSeMobile() {
 }
 
 window.addEventListener("resize", spostaRisultatiSeMobile);
+
 
