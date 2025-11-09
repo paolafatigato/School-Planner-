@@ -1140,7 +1140,7 @@ function trovaOrarioClasse(event) {
     const classe = localStorage.getItem(`cella-${dataISO}-${oraStr}-0`)?.trim();
     const materia = localStorage.getItem(`cella-${dataISO}-${oraStr}-1`)?.trim();
 
-    if (classe === classeValore && materia) {
+    if (classe === classeValore) {
       const giornoSettimana = dataObj.getDay(); // 1 = lun, 6 = sab
 
       if (giornoSettimana >= 0 && giornoSettimana <= 5) {
@@ -1232,7 +1232,7 @@ const contenitore = document.getElementById("risultati");
 
   orarioClasse.forEach(entry => {
     if (!mappa[entry.ora]) mappa[entry.ora] = {};
-    mappa[entry.ora][entry.giorno] = entry.materia;
+    mappa[entry.ora][entry.giorno] = entry.materia|| classe;
   });
 
   const tabella = document.createElement("table");
@@ -1379,5 +1379,6 @@ function spostaRisultatiSeMobile() {
 }
 
 window.addEventListener("resize", spostaRisultatiSeMobile);
+
 
 
