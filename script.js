@@ -9,32 +9,48 @@ const colonne = ["classe", "materia", "programma", "compiti"];
 // ===============================
 // SYNC ONLINE CON GOOGLE SHEETS
 // ===============================
-
-// URL della tua Web App di Apps Script
 const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbw1Mby1jXEObIA1mWQg-wjwP540MYnMcoaJuHxLWGqsGNP6cZNziK_bCoMA4ZbsoZ-KvA/exec";
 
+// Salvataggio: POST in modalità no-cors (non leggiamo la risposta)
 function salvaOnline(key, value) {
   if (!GOOGLE_SHEET_URL) return;
 
   fetch(GOOGLE_SHEET_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    mode: "no-cors",
     body: JSON.stringify({ key, value })
   }).catch(err => {
     console.error("Errore salvataggio online", err);
   });
 }
 
+// Lettura: JSONP (aggira CORS)
 function leggiOnline(key) {
-  if (!GOOGLE_SHEET_URL) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    if (!GOOGLE_SHEET_URL) {
+      resolve(null);
+      return;
+    }
 
-  return fetch(GOOGLE_SHEET_URL + "?key=" + encodeURIComponent(key))
-    .then(res => res.text())
-    .then(text => text || null)
-    .catch(err => {
-      console.error("Errore lettura online", err);
-      return null;
-    });
+    const callbackName = "jsonp_cb_" + Math.random().toString(36).substr(2, 9);
+
+    // funzione callback globale temporanea
+    window[callbackName] = function (data) {
+      const valore = data && data.value ? data.value : null;
+      resolve(valore);
+
+      // pulizia
+      delete window[callbackName];
+      script.remove();
+    };
+
+    const script = document.createElement("script");
+    script.src = GOOGLE_SHEET_URL
+      + "?key=" + encodeURIComponent(key)
+      + "&callback=" + encodeURIComponent(callbackName);
+
+    document.body.appendChild(script);
+  });
 }
 
 // ===============================
@@ -1379,6 +1395,7 @@ function spostaRisultatiSeMobile() {
 }
 
 window.addEventListener("resize", spostaRisultatiSeMobile);
+
 
 
 
