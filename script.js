@@ -765,29 +765,28 @@ function creaSettimane() {
 
 
           const giornoCompleto = dataCorrente.toISOString().split('T')[0];
-          const chiave = `cella-${giornoCompleto}-${ora}-${colOriginale}`;
+const chiave = `cella-${giornoCompleto}-${ora}-${colOriginale}`;
 textarea.dataset.key = chiave;
 
-// 1) prima prova a leggere da localStorage
-const valoreSalvato = localStorage.getItem(chiave);
-if (valoreSalvato) {
-  textarea.value = valoreSalvato;
-} else {
-  // 2) se è vuoto, prova a leggere dal cloud (Google Sheets)
-  leggiOnline(chiave).then(valoreCloud => {
-    if (valoreCloud) {
-      textarea.value = valoreCloud;
-      localStorage.setItem(chiave, valoreCloud);
-    }
-  });
-}
+// 1️⃣ prima tenta subito il cloud
+leggiOnline(chiave).then(valoreCloud => {
+  if (valoreCloud) {
+    textarea.value = valoreCloud;
+    localStorage.setItem(chiave, valoreCloud);
+  } else {
+    // 2️⃣ se non c'è online, usa l'ultimo locale
+    const valoreSalvato = localStorage.getItem(chiave);
+    if (valoreSalvato) textarea.value = valoreSalvato;
+  }
+});
 
-// 3) ogni volta che cambia: salva locale + online
+// 3️⃣ salva sia in locale che online
 textarea.addEventListener("change", () => {
   const v = textarea.value;
   localStorage.setItem(chiave, v);
   salvaOnline(chiave, v);
 });
+
 
 
           textarea.setAttribute('data-settimana', Math.floor(giorniInseriti / 6));
@@ -1395,6 +1394,7 @@ function spostaRisultatiSeMobile() {
 }
 
 window.addEventListener("resize", spostaRisultatiSeMobile);
+
 
 
 
