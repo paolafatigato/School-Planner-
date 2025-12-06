@@ -113,14 +113,27 @@ function ascoltaCambiamentiRealTime(key, textarea) {
     if (timestampCloud > timestampLocale && valoreCloud !== valoreLocale) {
       console.log(`🔄 Aggiornamento real-time: ${key}`);
       
+      // Aggiorna textarea
       textarea.value = valoreCloud;
       textarea.dataset.timestamp = timestampCloud;
       localStorage.setItem(key, valoreCloud);
 
-      // Aggiorna anche Quill se presente
+      // ⭐ Aggiorna anche Quill se presente
       if (window.quillInstances && window.quillInstances[key]) {
         const quill = window.quillInstances[key];
+        
+        // Salva posizione cursore
+        const selection = quill.getSelection();
+        
+        // Aggiorna contenuto
         quill.clipboard.dangerouslyPasteHTML(valoreCloud);
+        
+        // Ripristina cursore se l'editor era attivo
+        if (selection) {
+          setTimeout(() => {
+            quill.setSelection(selection);
+          }, 0);
+        }
       }
     }
   });
@@ -243,8 +256,8 @@ function configuraTutteLeTextarea() {
     // 2️⃣ Ascolta cambiamenti in tempo reale
     ascoltaCambiamentiRealTime(key, textarea);
 
-    // 3️⃣ Salva quando l'utente modifica
-    if (!textarea.dataset.listenerAttached) {
+    // 3️⃣ Salva quando l'utente modifica (solo per textarea NON-Quill)
+    if (!textarea.dataset.listenerAttached && !textarea.classList.contains('editor-programma')) {
       const saveHandler = () => {
         const v = textarea.value;
         const timestamp = new Date().getTime();
@@ -257,6 +270,53 @@ function configuraTutteLeTextarea() {
       textarea.addEventListener("change", saveHandler);
       textarea.addEventListener("blur", saveHandler);
       textarea.dataset.listenerAttached = "true";
+    }
+  });
+}
+
+// ===============================
+// ⭐ CONFIGURA Quill con sincronizzazione Firebase
+// ===============================
+function configuraQuillConFirebase(quill, textarea, key) {
+  if (!quill || !key) return;
+  
+  console.log(`🎨 Configurazione Quill con Firebase per: ${key}`);
+  
+  // 1️⃣ Carica valore iniziale da Firebase
+  leggiOnline(key).then(dataCloud => {
+    if (dataCloud && dataCloud.valore && dataCloud.valore.trim()) {
+      const timestampCloud = dataCloud.timestamp || 0;
+      const timestampLocale = parseInt(textarea.dataset.timestamp || 0);
+      
+      if (timestampCloud > timestampLocale) {
+        quill.clipboard.dangerouslyPasteHTML(dataCloud.valore);
+        textarea.value = dataCloud.valore;
+        textarea.dataset.timestamp = timestampCloud;
+        localStorage.setItem(key, dataCloud.valore);
+      }
+    }
+  });
+  
+  // 2️⃣ Ascolta cambiamenti in tempo reale
+  ascoltaCambiamentiRealTime(key, textarea);
+  
+  // 3️⃣ Salva su Firebase quando Quill cambia
+  let saveTimeout;
+  quill.on('text-change', (delta, oldDelta, source) => {
+    // Salva solo se il cambiamento è fatto dall'utente (non da codice)
+    if (source === 'user') {
+      const html = quill.root.innerHTML;
+      const timestamp = new Date().getTime();
+      
+      textarea.value = html;
+      textarea.dataset.timestamp = timestamp;
+      localStorage.setItem(key, html);
+      
+      // Debounce: salva su Firebase dopo 1 secondo di inattività
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(() => {
+        salvaOnline(key, html);
+      }, 1000);
     }
   });
 }
@@ -300,8 +360,20 @@ window.addEventListener('DOMContentLoaded', () => {
       initQuillEditorsOriginal();
     }
     
-    // Riconfigura le textarea dopo l'init di Quill
+    // Configura Firebase per ogni istanza Quill
     setTimeout(() => {
+      if (window.quillInstances) {
+        Object.keys(window.quillInstances).forEach(key => {
+          const quill = window.quillInstances[key];
+          const textarea = document.querySelector(`textarea[data-key="${key}"]`);
+          
+          if (quill && textarea) {
+            configuraQuillConFirebase(quill, textarea, key);
+          }
+        });
+      }
+      
+      // Riconfigura anche le textarea normali
       configuraTutteLeTextarea();
     }, 500);
   };
