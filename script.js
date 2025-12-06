@@ -121,9 +121,13 @@ document.getElementById("userIcon").addEventListener("click", () => {
   aggiornaAnteprimaIcone(coloreSelezionato);
 });
 
-document.getElementById("chiudiProfilo").addEventListener("click", () => {
-  document.getElementById("modalProfilo").style.display = "none";
-});
+const chiudiProfilo = document.getElementById("chiudiProfilo");
+if (chiudiProfilo) {
+  chiudiProfilo.addEventListener("click", () => {
+    document.getElementById("modalProfilo").style.display = "none";
+  });
+}
+
 
 // ===============================
 // Salvataggio profilo
@@ -1343,5 +1347,6 @@ function spostaRisultatiSeMobile() {
 }
 
 window.addEventListener("resize", spostaRisultatiSeMobile);
+
 
 
