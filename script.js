@@ -1,23 +1,3 @@
-// Proteggi il codice dagli errori
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('✅ DOMContentLoaded');
-});
-
-// Evita duplicati
-if (typeof giorniSettimana === 'undefined') {
-    var giorniSettimana = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica'];
-}
-
-// Proteggi tutti i listener
-function safeAddListener(selector, event, callback) {
-    const element = document.getElementById(selector) || document.querySelector(selector);
-    if (element) {
-        element.addEventListener(event, callback);
-    } else {
-        console.warn('⚠️ Elemento non trovato:', selector);
-    }
-}
-
 // ===============================
 // COSTANTI DI BASE
 // ===============================
@@ -1347,6 +1327,7 @@ function spostaRisultatiSeMobile() {
 }
 
 window.addEventListener("resize", spostaRisultatiSeMobile);
+
 
 
 
