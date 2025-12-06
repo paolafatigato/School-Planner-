@@ -15,6 +15,7 @@ const firebaseConfig = {
 
 let db = null;
 let firebaseInitialized = false;
+let listenersAttivi = new Set(); // Traccia i listener già attivi
 
 // ⭐ INIZIALIZZA FIREBASE UNA SOLA VOLTA
 function initFirebase() {
@@ -65,7 +66,7 @@ function salvaOnline(key, value) {
 }
 
 // ===============================
-// LEGGI ONLINE con risoluzione conflitti
+// LEGGI ONLINE (una volta sola)
 // ===============================
 function leggiOnline(key) {
   return new Promise((resolve) => {
@@ -90,15 +91,37 @@ function leggiOnline(key) {
 }
 
 // ===============================
-// LISTENER real-time per aggiornamenti
+// ⭐ ASCOLTA CAMBIAMENTI IN TEMPO REALE
 // ===============================
-function setupListenerRealTime(key, callback) {
+function ascoltaCambiamentiRealTime(key, textarea) {
   if (!db) return;
   
+  // Evita di creare listener multipli sulla stessa chiave
+  if (listenersAttivi.has(key)) return;
+  listenersAttivi.add(key);
+
   db.ref('dati/' + key).on('value', (snapshot) => {
     const data = snapshot.val();
-    if (data && data.valore !== undefined) {
-      callback(data);
+    if (!data || data.valore === undefined) return;
+
+    const valoreCloud = data.valore;
+    const timestampCloud = data.timestamp || 0;
+    const valoreLocale = textarea.value;
+    const timestampLocale = parseInt(textarea.dataset.timestamp || 0);
+
+    // Aggiorna solo se il cloud è più recente E diverso
+    if (timestampCloud > timestampLocale && valoreCloud !== valoreLocale) {
+      console.log(`🔄 Aggiornamento real-time: ${key}`);
+      
+      textarea.value = valoreCloud;
+      textarea.dataset.timestamp = timestampCloud;
+      localStorage.setItem(key, valoreCloud);
+
+      // Aggiorna anche Quill se presente
+      if (window.quillInstances && window.quillInstances[key]) {
+        const quill = window.quillInstances[key];
+        quill.clipboard.dangerouslyPasteHTML(valoreCloud);
+      }
     }
   });
 }
@@ -191,40 +214,36 @@ function caricaProfiloOnline() {
 }
 
 // ===============================
-// ⭐ NUOVA FUNZIONE: Sincronizza tutte le celle
+// ⭐ CONFIGURA tutte le textarea
 // ===============================
-function sincronizzaTutteLeTextarea() {
+function configuraTutteLeTextarea() {
   document.querySelectorAll('textarea[data-key]').forEach(textarea => {
     const key = textarea.dataset.key;
     if (!key) return;
 
-    // Leggi valore da Firebase
+    // 1️⃣ Carica valore iniziale da Firebase (una volta)
     leggiOnline(key).then(dataCloud => {
-      if (!dataCloud) return;
-
-      const valoreCloud = dataCloud.valore;
-      const timestampCloud = dataCloud.timestamp || 0;
-      
-      // Controlla timestamp locale
-      const timestampLocale = parseInt(textarea.dataset.timestamp || 0);
-      
-      // Se cloud è più recente, aggiorna
-      if (timestampCloud > timestampLocale && valoreCloud !== textarea.value) {
-        textarea.value = valoreCloud;
-        textarea.dataset.timestamp = timestampCloud;
-        localStorage.setItem(key, valoreCloud);
+      if (dataCloud && dataCloud.valore) {
+        const timestampCloud = dataCloud.timestamp || 0;
+        const timestampLocale = parseInt(textarea.dataset.timestamp || 0);
         
-        // Aggiorna anche Quill se presente
-        if (window.quillInstances && window.quillInstances[key]) {
-          const quill = window.quillInstances[key];
-          quill.clipboard.dangerouslyPasteHTML(valoreCloud);
+        if (timestampCloud > timestampLocale) {
+          textarea.value = dataCloud.valore;
+          textarea.dataset.timestamp = timestampCloud;
+          localStorage.setItem(key, dataCloud.valore);
+          
+          // Aggiorna Quill se presente
+          if (window.quillInstances && window.quillInstances[key]) {
+            window.quillInstances[key].clipboard.dangerouslyPasteHTML(dataCloud.valore);
+          }
         }
-        
-        console.log(`🔄 Aggiornata cella: ${key}`);
       }
     });
 
-    // Setup listener per salvataggio
+    // 2️⃣ Ascolta cambiamenti in tempo reale
+    ascoltaCambiamentiRealTime(key, textarea);
+
+    // 3️⃣ Salva quando l'utente modifica
     if (!textarea.dataset.listenerAttached) {
       const saveHandler = () => {
         const v = textarea.value;
@@ -253,46 +272,37 @@ document.addEventListener('DOMContentLoaded', () => {
     // Carica profilo
     caricaProfiloOnline();
     
-    // Aspetta che le tabelle siano create
+    // Aspetta che le tabelle siano create, poi configura
     setTimeout(() => {
-      sincronizzaTutteLeTextarea();
+      configuraTutteLeTextarea();
     }, 1000);
-    
-    // Sincronizza periodicamente
-    setInterval(() => {
-      sincronizzaTutteLeTextarea();
-    }, 10000); // ogni 10 secondi
   }
 });
 
 // ===============================
-// RILEVA cambio finestra e sincronizza
+// RILEVA cambio finestra
 // ===============================
 window.addEventListener('focus', () => {
-  console.log("🔄 Finestra in focus - sincronizzazione...");
+  console.log("🔄 Finestra in focus - ricarico profilo...");
   if (db) {
     caricaProfiloOnline();
-    sincronizzaTutteLeTextarea();
   }
 });
 
 // ===============================
-// ⭐ OVERRIDE della funzione initQuillEditors
+// ⭐ OVERRIDE initQuillEditors per sincronizzazione
 // ===============================
 window.addEventListener('DOMContentLoaded', () => {
-  // Salva la funzione originale
   const initQuillEditorsOriginal = window.initQuillEditors;
   
-  // Override con versione sincronizzata
   window.initQuillEditors = function() {
-    // Chiama la funzione originale
     if (typeof initQuillEditorsOriginal === 'function') {
       initQuillEditorsOriginal();
     }
     
-    // Aggiungi sincronizzazione Firebase
+    // Riconfigura le textarea dopo l'init di Quill
     setTimeout(() => {
-      sincronizzaTutteLeTextarea();
+      configuraTutteLeTextarea();
     }, 500);
   };
 });
