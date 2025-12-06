@@ -1,6 +1,7 @@
 // ===============================
 // SINCRONIZZAZIONE FIREBASE
 // ===============================
+
 // 🔥 Configurazione Firebase (sostituisci con i tuoi dati)
 const firebaseConfig = {
   apiKey: "AIzaSyBcd1234567890abcdefghijkl",
@@ -12,26 +13,41 @@ const firebaseConfig = {
   appId: "1:1083482501584:web:abc123def456"
 };
 
-
 let db = null;
+let firebaseInitialized = false;
 
-// Inizializza Firebase quando disponibile
+// ⭐ INIZIALIZZA FIREBASE UNA SOLA VOLTA
 function initFirebase() {
-  if (typeof firebase !== 'undefined' && !db) {
+  if (typeof firebase === 'undefined') {
+    console.error("❌ Firebase SDK non caricato!");
+    return false;
+  }
+  
+  if (firebaseInitialized) {
+    console.log("✅ Firebase già inizializzato");
+    return true;
+  }
+
+  try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
-    console.log("✅ Firebase inizializzato");
+    firebaseInitialized = true;
+    console.log("✅ Firebase inizializzato con successo");
+    return true;
+  } catch (err) {
+    console.error("❌ Errore inizializzazione Firebase:", err);
+    return false;
   }
 }
 
-// Chiama al caricamento pagina
-document.addEventListener('DOMContentLoaded', initFirebase);
-
 // ===============================
-// NUOVO: Salva ONLINE con timestamp
+// SALVA ONLINE con timestamp
 // ===============================
 function salvaOnline(key, value) {
-  if (!db) return;
+  if (!db) {
+    console.warn("⚠️ Database non disponibile");
+    return;
+  }
   
   const timestamp = new Date().getTime();
   const dispositivo = /Mobile|Android|iPhone/.test(navigator.userAgent) ? 'phone' : 'pc';
@@ -41,13 +57,15 @@ function salvaOnline(key, value) {
     timestamp: timestamp,
     dispositivo: dispositivo,
     dataModifica: new Date().toISOString()
+  }).then(() => {
+    console.log(`✅ Salvato su Firebase: ${key}`);
   }).catch(err => {
     console.error("❌ Errore salvataggio Firebase:", err);
   });
 }
 
 // ===============================
-// NUOVO: Leggi ONLINE con risoluzione conflitti
+// LEGGI ONLINE con risoluzione conflitti
 // ===============================
 function leggiOnline(key) {
   return new Promise((resolve) => {
@@ -59,7 +77,8 @@ function leggiOnline(key) {
     db.ref('dati/' + key).once('value', (snapshot) => {
       const data = snapshot.val();
       if (data && data.valore !== undefined) {
-        resolve(data.valore);
+        console.log(`📥 Letto da Firebase: ${key}`);
+        resolve(data);
       } else {
         resolve(null);
       }
@@ -71,7 +90,7 @@ function leggiOnline(key) {
 }
 
 // ===============================
-// NUOVO: Listener real-time per aggiornamenti
+// LISTENER real-time per aggiornamenti
 // ===============================
 function setupListenerRealTime(key, callback) {
   if (!db) return;
@@ -79,13 +98,13 @@ function setupListenerRealTime(key, callback) {
   db.ref('dati/' + key).on('value', (snapshot) => {
     const data = snapshot.val();
     if (data && data.valore !== undefined) {
-      callback(data.valore);
+      callback(data);
     }
   });
 }
 
 // ===============================
-// NUOVO: Sincronizza profilo utente
+// SINCRONIZZA profilo utente
 // ===============================
 function salvaProfilo() {
   const profilo = {
@@ -104,22 +123,28 @@ function salvaProfilo() {
     return;
   }
 
+  const timestamp = new Date().getTime();
+
   // Salva in localStorage (cache locale)
   localStorage.setItem("profiloUtente", JSON.stringify(profilo));
   localStorage.setItem("materieInsegnate", JSON.stringify(profilo.materie));
   localStorage.setItem("iconaUtente", iconaSelezionata);
   localStorage.setItem("coloreIcona", coloreSelezionato);
+  localStorage.setItem("profiloTimestamp", timestamp);
 
-  // 🔥 NUOVO: Salva online su Firebase
+  // 🔥 Salva online su Firebase
   if (db) {
-    const timestamp = new Date().getTime();
     db.ref('profilo').set({
       profilo: profilo,
       icona: iconaSelezionata,
       colore: coloreSelezionato,
       timestamp: timestamp,
       ultimoAggiornamento: new Date().toISOString()
-    }).catch(err => console.error("Errore salvataggio profilo:", err));
+    }).then(() => {
+      console.log("✅ Profilo salvato su Firebase");
+    }).catch(err => {
+      console.error("❌ Errore salvataggio profilo:", err);
+    });
   }
 
   aggiornaIconaUtente();
@@ -128,17 +153,19 @@ function salvaProfilo() {
 }
 
 // ===============================
-// NUOVO: Carica profilo da online se più recente
+// CARICA profilo da online se più recente
 // ===============================
 function caricaProfiloOnline() {
   if (!db) return;
   
   db.ref('profilo').once('value', (snapshot) => {
     const data = snapshot.val();
-    if (!data) return;
+    if (!data) {
+      console.log("📭 Nessun profilo su Firebase");
+      return;
+    }
     
-    const profiloLocale = JSON.parse(localStorage.getItem("profiloUtente")) || {};
-    const timestampLocale = localStorage.getItem("profiloTimestamp") || 0;
+    const timestampLocale = parseInt(localStorage.getItem("profiloTimestamp") || 0);
     
     // Se online è più recente, aggiorna
     if (data.timestamp > timestampLocale) {
@@ -149,233 +176,123 @@ function caricaProfiloOnline() {
       localStorage.setItem("profiloTimestamp", data.timestamp);
       
       aggiornaIconaUtente();
-      console.log("✅ Profilo aggiornato da cloud");
-    }
-  }).catch(err => console.error("Errore caricamento profilo:", err));
-}
-
-// ===============================
-// MIGLIORATO: Apertura modale con profilo online
-// ===============================
-document.getElementById("userIcon").addEventListener("click", () => {
-  document.getElementById("modalProfilo").style.display = "flex";
-
-  const profilo = JSON.parse(localStorage.getItem("profiloUtente")) || {};
-  document.getElementById("inputNome").value = profilo.nome || "";
-  document.getElementById("inputCognome").value = profilo.cognome || "";
-  document.getElementById("inputScuola").value = profilo.scuola || "";
-  document.getElementById("materia1").value = profilo.materie?.[0] || "";
-  document.getElementById("materia2").value = profilo.materie?.[1] || "";
-  document.getElementById("materia3").value = profilo.materie?.[2] || "";
-
-  document.querySelectorAll('.icona-opzione').forEach(div => {
-    div.classList.toggle('selezionata', div.dataset.src === iconaSelezionata);
-  });
-
-  document.querySelectorAll('.colore-opzione').forEach(div => {
-    const divColor = rgbToHex(getComputedStyle(div).backgroundColor);
-    div.classList.toggle('selezionata', divColor === coloreSelezionato);
-  });
-
-  aggiornaAnteprimaIcone(coloreSelezionato);
-  
-  // 🔥 NUOVO: Carica profilo online se disponibile
-  caricaProfiloOnline();
-});
-
-// ===============================
-// MIGLIORATO: Salvataggio textarea con sincronizzazione
-// ===============================
-function setupTextareaSyncronizzata(textarea, chiave) {
-  if (!chiave) return;
-  
-  // 1️⃣ Leggi da cloud prima
-  leggiOnline(chiave).then(valoreCloud => {
-    if (valoreCloud && valoreCloud.trim()) {
-      textarea.value = valoreCloud;
-      localStorage.setItem(chiave, valoreCloud);
+      console.log("✅ Profilo aggiornato da Firebase");
+      
+      // Ricrea le tabelle se siamo nella pagina planner
+      if (typeof creaSettimane === 'function') {
+        creaSettimane();
+      }
     } else {
-      // 2️⃣ Se non online, usa locale
-      const valoreSalvato = localStorage.getItem(chiave);
-      if (valoreSalvato) textarea.value = valoreSalvato;
+      console.log("✅ Profilo locale già aggiornato");
     }
+  }).catch(err => {
+    console.error("❌ Errore caricamento profilo:", err);
   });
-
-  // 3️⃣ Ascolta cambiamenti in tempo reale
-  if (db) {
-    db.ref('dati/' + chiave).on('value', (snapshot) => {
-      const data = snapshot.val();
-      if (data && data.valore !== undefined) {
-        const valoreCloud = data.valore;
-        const valoreLocale = textarea.value;
-        
-        // Se il cloud è diverso dal locale E più recente, aggiorna
-        if (valoreCloud !== valoreLocale) {
-          // Controlla il timestamp per evitare sovrascritture
-          const timestampCloud = data.timestamp || 0;
-          const timestampLocale = parseInt(textarea.dataset.timestamp || 0);
-          
-          if (timestampCloud > timestampLocale) {
-            textarea.value = valoreCloud;
-            textarea.dataset.timestamp = timestampCloud;
-            
-            // Se è un editor Quill, aggiorna anche lì
-            const wrapper = textarea.closest('.quill-wrapper');
-            if (wrapper && window.quillInstances && window.quillInstances[chiave]) {
-              const quill = window.quillInstances[chiave];
-              quill.clipboard.dangerouslyPasteHTML(valoreCloud);
-            }
-          }
-        }
-      }
-    });
-  }
-
-  // 4️⃣ Salva locale + online quando cambia
-  const saveHandler = () => {
-    const v = textarea.value;
-    const timestamp = new Date().getTime();
-    
-    textarea.dataset.timestamp = timestamp;
-    localStorage.setItem(chiave, v);
-    salvaOnline(chiave, v);
-  };
-
-  textarea.addEventListener("change", saveHandler);
-  textarea.addEventListener("blur", saveHandler);
 }
 
 // ===============================
-// MIGLIORATO: Quill editor con sincronizzazione
+// ⭐ NUOVA FUNZIONE: Sincronizza tutte le celle
 // ===============================
-function initQuillEditors() {
-  document.querySelectorAll('textarea.editor-programma').forEach((textarea) => {
-    if (textarea.dataset.quillified === '1') return;
-
+function sincronizzaTutteLeTextarea() {
+  document.querySelectorAll('textarea[data-key]').forEach(textarea => {
     const key = textarea.dataset.key;
-    const parent = textarea.parentElement;
+    if (!key) return;
 
-    const wrapper = document.createElement('div');
-    wrapper.className = 'quill-wrapper';
-    const editor = document.createElement('div');
-    editor.className = 'quill-editor';
+    // Leggi valore da Firebase
+    leggiOnline(key).then(dataCloud => {
+      if (!dataCloud) return;
 
-    parent.insertBefore(wrapper, textarea);
-    wrapper.appendChild(editor);
-
-    textarea.style.position = 'absolute';
-    textarea.style.left = '-10000px';
-    textarea.style.width = '1px';
-    textarea.style.height = '1px';
-    textarea.style.opacity = '0';
-
-    const toolbarOptions = [
-      [{ list: 'check' }],
-      ['bold', 'italic'],
-      [{ list: 'ordered' }, { list: 'bullet' }]
-    ];
-
-    const quill = new Quill(editor, {
-      theme: 'snow',
-      modules: { toolbar: toolbarOptions }
-    });
-
-    // Salva istanza Quill globale per accesso da altre funzioni
-    if (!window.quillInstances) window.quillInstances = {};
-    window.quillInstances[key] = quill;
-
-    // Carica valore: prima cloud, poi locale
-    const saved = key ? localStorage.getItem(key) : null;
-    if (saved && saved.trim()) {
-      quill.clipboard.dangerouslyPasteHTML(saved);
-      textarea.value = saved;
-    } else if (textarea.value && textarea.value.trim()) {
-      quill.clipboard.dangerouslyPasteHTML(textarea.value);
-    }
-
-    // Tenta cloud se locale è vuoto
-    if (key && (!saved || !saved.trim())) {
-      leggiOnline(key).then(valoreCloud => {
-        if (valoreCloud && valoreCloud.trim()) {
+      const valoreCloud = dataCloud.valore;
+      const timestampCloud = dataCloud.timestamp || 0;
+      
+      // Controlla timestamp locale
+      const timestampLocale = parseInt(textarea.dataset.timestamp || 0);
+      
+      // Se cloud è più recente, aggiorna
+      if (timestampCloud > timestampLocale && valoreCloud !== textarea.value) {
+        textarea.value = valoreCloud;
+        textarea.dataset.timestamp = timestampCloud;
+        localStorage.setItem(key, valoreCloud);
+        
+        // Aggiorna anche Quill se presente
+        if (window.quillInstances && window.quillInstances[key]) {
+          const quill = window.quillInstances[key];
           quill.clipboard.dangerouslyPasteHTML(valoreCloud);
-          textarea.value = valoreCloud;
-          localStorage.setItem(key, valoreCloud);
         }
-      });
-    }
-
-    // Sync: Quill -> textarea -> localStorage + cloud
-    const syncAll = () => {
-      const html = quill.root.innerHTML;
-      textarea.value = html;
-      if (key) {
-        localStorage.setItem(key, html);
-        salvaOnline(key, html);
-      }
-    };
-
-    quill.on('text-change', syncAll);
-
-    // Focus per toolbar
-    quill.on('selection-change', (range) => {
-      if (range) {
-        wrapper.classList.add('focus');
-      } else {
-        setTimeout(() => {
-          if (!document.activeElement.closest('.ql-toolbar')) {
-            wrapper.classList.remove('focus');
-          }
-        }, 150);
+        
+        console.log(`🔄 Aggiornata cella: ${key}`);
       }
     });
 
-    textarea.dataset.quillified = '1';
-    wrapper.dataset.key = key || '';
+    // Setup listener per salvataggio
+    if (!textarea.dataset.listenerAttached) {
+      const saveHandler = () => {
+        const v = textarea.value;
+        const timestamp = new Date().getTime();
+        
+        textarea.dataset.timestamp = timestamp;
+        localStorage.setItem(key, v);
+        salvaOnline(key, v);
+      };
 
-    syncAll();
+      textarea.addEventListener("change", saveHandler);
+      textarea.addEventListener("blur", saveHandler);
+      textarea.dataset.listenerAttached = "true";
+    }
   });
 }
 
 // ===============================
-// NUOVO: Sincronizzazione periodica
+// ⭐ INIZIALIZZAZIONE AL CARICAMENTO
 // ===============================
-function avviaSync() {
-  // Sincronizza ogni 5 secondi
-  setInterval(() => {
-    // Se online è disponibile, carica profilo
+document.addEventListener('DOMContentLoaded', () => {
+  console.log("🚀 Inizializzazione Firebase...");
+  
+  // Inizializza Firebase
+  if (initFirebase()) {
+    // Carica profilo
     caricaProfiloOnline();
     
-    // Sincronizza tutte le celle visibili
-    document.querySelectorAll('textarea[data-key]').forEach(textarea => {
-      const key = textarea.dataset.key;
-      if (key) {
-        setupTextareaSyncronizzata(textarea, key);
-      }
-    });
-  }, 5000);
-}
-
-// Inizia sincronizzazione al caricamento
-document.addEventListener('DOMContentLoaded', avviaSync);
-
-// ===============================
-// NUOVO: Rileva cambio dispositivo e sincronizza
-// ===============================
-window.addEventListener('focus', () => {
-  console.log("🔄 App rientrato in focus - sincronizzazione...");
-  caricaProfiloOnline();
+    // Aspetta che le tabelle siano create
+    setTimeout(() => {
+      sincronizzaTutteLeTextarea();
+    }, 1000);
+    
+    // Sincronizza periodicamente
+    setInterval(() => {
+      sincronizzaTutteLeTextarea();
+    }, 10000); // ogni 10 secondi
+  }
 });
 
 // ===============================
-// ALERT: Conflitto dati rilevato
+// RILEVA cambio finestra e sincronizza
 // ===============================
-function gestisciConflitto(key, valoreLocale, valoreCloud, timestampLocale, timestampCloud) {
-  // Usa il più recente (timestamp)
-  if (timestampCloud > timestampLocale) {
-    console.log(`⚠️  Conflitto su ${key}: vince versione cloud (più recente)`);
-    return valoreCloud;
-  } else {
-    console.log(`⚠️  Conflitto su ${key}: vince versione locale (più recente)`);
-    return valoreLocale;
+window.addEventListener('focus', () => {
+  console.log("🔄 Finestra in focus - sincronizzazione...");
+  if (db) {
+    caricaProfiloOnline();
+    sincronizzaTutteLeTextarea();
   }
-}
+});
+
+// ===============================
+// ⭐ OVERRIDE della funzione initQuillEditors
+// ===============================
+window.addEventListener('DOMContentLoaded', () => {
+  // Salva la funzione originale
+  const initQuillEditorsOriginal = window.initQuillEditors;
+  
+  // Override con versione sincronizzata
+  window.initQuillEditors = function() {
+    // Chiama la funzione originale
+    if (typeof initQuillEditorsOriginal === 'function') {
+      initQuillEditorsOriginal();
+    }
+    
+    // Aggiungi sincronizzazione Firebase
+    setTimeout(() => {
+      sincronizzaTutteLeTextarea();
+    }, 500);
+  };
+});
