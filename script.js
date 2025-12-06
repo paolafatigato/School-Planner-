@@ -6,52 +6,6 @@
 const giorniSettimana = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
 const orari = [8, 9, 10, 11, 12, 13];
 const colonne = ["classe", "materia", "programma", "compiti"];
-// ===============================
-// SYNC ONLINE CON GOOGLE SHEETS
-// ===============================
-const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbw1Mby1jXEObIA1mWQg-wjwP540MYnMcoaJuHxLWGqsGNP6cZNziK_bCoMA4ZbsoZ-KvA/exec";
-
-// Salvataggio: POST in modalità no-cors (non leggiamo la risposta)
-function salvaOnline(key, value) {
-  if (!GOOGLE_SHEET_URL) return;
-
-  fetch(GOOGLE_SHEET_URL, {
-    method: "POST",
-    mode: "no-cors",
-    body: JSON.stringify({ key, value })
-  }).catch(err => {
-    console.error("Errore salvataggio online", err);
-  });
-}
-
-// Lettura: JSONP (aggira CORS)
-function leggiOnline(key) {
-  return new Promise((resolve) => {
-    if (!GOOGLE_SHEET_URL) {
-      resolve(null);
-      return;
-    }
-
-    const callbackName = "jsonp_cb_" + Math.random().toString(36).substr(2, 9);
-
-    // funzione callback globale temporanea
-    window[callbackName] = function (data) {
-      const valore = data && data.value ? data.value : null;
-      resolve(valore);
-
-      // pulizia
-      delete window[callbackName];
-      script.remove();
-    };
-
-    const script = document.createElement("script");
-    script.src = GOOGLE_SHEET_URL
-      + "?key=" + encodeURIComponent(key)
-      + "&callback=" + encodeURIComponent(callbackName);
-
-    document.body.appendChild(script);
-  });
-}
 
 // ===============================
 // Colori sfondo e testo sincronizzati (con classi diverse)
@@ -265,23 +219,23 @@ function initQuillEditors() {
     const key = textarea.dataset.key;
     const parent = textarea.parentElement;
 
-    // 1) crea wrapper + editor, ma NON rimuovere la textarea
+// 1) crea il wrapper + editor, ma NON rimuovere la textarea
     const wrapper = document.createElement('div');
     wrapper.className = 'quill-wrapper';
     const editor = document.createElement('div');
     editor.className = 'quill-editor';
 
+ // Inserisci l'editor PRIMA della textarea e poi nascondi la textarea
     parent.insertBefore(wrapper, textarea);
     wrapper.appendChild(editor);
-
-    // nascondo la textarea ma la tengo nel DOM
+    // nascondo ma la mantengo nel DOM per compatibilità
     textarea.style.position = 'absolute';
     textarea.style.left = '-10000px';
     textarea.style.width = '1px';
     textarea.style.height = '1px';
     textarea.style.opacity = '0';
 
-    // 2) toolbar
+    // 2) toolbar unica
     const toolbarOptions = [
       [{ list: 'check' }],                      // checklist
       ['bold', 'italic'],                       // grassetto/corsivo
@@ -293,44 +247,35 @@ function initQuillEditors() {
       modules: { toolbar: toolbarOptions }
     });
 
-    // 3) inizializza contenuto partendo da localStorage o textarea
+// 3) inizializza contenuto partendo dalla textarea (HTML se presente, altrimenti testo)
     const saved = key ? localStorage.getItem(key) : null;
     if (saved && saved.trim()) {
       quill.clipboard.dangerouslyPasteHTML(saved);
-      textarea.value = saved;
+      textarea.value = saved; // allinea subito anche la textarea
     } else if (textarea.value && textarea.value.trim()) {
+      // se hai testo semplice salvato in passato
       quill.clipboard.dangerouslyPasteHTML(textarea.value);
     }
 
-    // 3b) se non c'è niente in locale, prova a leggere dal cloud
-    if (key && (!saved || !saved.trim())) {
-      leggiOnline(key).then(valoreCloud => {
-        if (valoreCloud && valoreCloud.trim()) {
-          quill.clipboard.dangerouslyPasteHTML(valoreCloud);
-          textarea.value = valoreCloud;
-          localStorage.setItem(key, valoreCloud);
-        }
-      });
-    }
-
-    // 4) sync Quill -> textarea -> localStorage + cloud
+    // 4) sincronizza SEMPRE: Quill -> textarea (+ localStorage)
     const syncAll = () => {
       const html = quill.root.innerHTML;
-      textarea.value = html;
-      if (key) {
-        localStorage.setItem(key, html);
-        salvaOnline(key, html);
-      }
+      textarea.value = html;                       // compatibilità con il tuo codice esistente
+      if (key) localStorage.setItem(key, html);    // mantieni anche lo storage
+      // Se in qualche punto ti serve anche il TESTO semplice:
+      // localStorage.setItem(key + ':text', quill.getText().trim());
     };
 
     quill.on('text-change', syncAll);
 
-    // 5) mostra la toolbar solo quando l'editor ha focus
+    // 5) mostra la toolbar SOLO quando l'editor ha focus (desktop + mobile)
     quill.on('selection-change', (range) => {
       if (range) {
         wrapper.classList.add('focus');
       } else {
+        // piccolo delay per consentire click sui controlli della toolbar
         setTimeout(() => {
+          // se non sto interagendo con la toolbar, chiudi
           if (!document.activeElement.closest('.ql-toolbar')) {
             wrapper.classList.remove('focus');
           }
@@ -341,11 +286,10 @@ function initQuillEditors() {
     textarea.dataset.quillified = '1';
     wrapper.dataset.key = key || '';
 
-    // prima sincronizzazione
+    // 6) prima sincronizzazione (utile se caricato da textarea.value)
     syncAll();
   });
 }
-
 
 
 function chiudiModale() {
@@ -765,29 +709,15 @@ function creaSettimane() {
 
 
           const giornoCompleto = dataCorrente.toISOString().split('T')[0];
-const chiave = `cella-${giornoCompleto}-${ora}-${colOriginale}`;
-textarea.dataset.key = chiave;
+          const chiave = `cella-${giornoCompleto}-${ora}-${colOriginale}`;
+          textarea.dataset.key = chiave;              // ⬅️ AGGIUNTO QUESTA
 
-// 1️⃣ prima tenta subito il cloud
-leggiOnline(chiave).then(valoreCloud => {
-  if (valoreCloud) {
-    textarea.value = valoreCloud;
-    localStorage.setItem(chiave, valoreCloud);
-  } else {
-    // 2️⃣ se non c'è online, usa l'ultimo locale
-    const valoreSalvato = localStorage.getItem(chiave);
-    if (valoreSalvato) textarea.value = valoreSalvato;
-  }
-});
+          const valoreSalvato = localStorage.getItem(chiave);
+          if (valoreSalvato) textarea.value = valoreSalvato;
 
-// 3️⃣ salva sia in locale che online
-textarea.addEventListener("change", () => {
-  const v = textarea.value;
-  localStorage.setItem(chiave, v);
-  salvaOnline(chiave, v);
-});
-
-
+          textarea.addEventListener("change", () => {
+            localStorage.setItem(chiave, textarea.value);
+          });
 
           textarea.setAttribute('data-settimana', Math.floor(giorniInseriti / 6));
           textarea.setAttribute('data-giorno', giorniInseriti % 6);
@@ -1394,9 +1324,4 @@ function spostaRisultatiSeMobile() {
 }
 
 window.addEventListener("resize", spostaRisultatiSeMobile);
-
-
-
-
-
 
