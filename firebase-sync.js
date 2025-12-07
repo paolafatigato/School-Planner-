@@ -136,7 +136,10 @@ function leggiOnline(key, timeout = 5000) {
 function ascoltaCambiamentiRealTime(key, textarea) {
   if (!db) return;
   
-  if (listenersAttivi.has(key)) return;
+  if (listenersAttivi.has(key)) {
+    console.log(`⚠️ Listener già attivo per: ${key}`);
+    return;
+  }
   listenersAttivi.add(key);
 
   const ref = db.ref('dati/' + key);
@@ -150,6 +153,7 @@ function ascoltaCambiamentiRealTime(key, textarea) {
     const valoreLocale = textarea.value;
     const timestampLocale = parseInt(textarea.dataset.timestamp || 0);
 
+    // Aggiorna solo se cloud è più recente E diverso
     if (timestampCloud > timestampLocale && valoreCloud !== valoreLocale) {
       console.log(`🔄 Aggiornamento real-time: ${key} (da ${data.dispositivo})`);
       
@@ -157,14 +161,28 @@ function ascoltaCambiamentiRealTime(key, textarea) {
       textarea.dataset.timestamp = timestampCloud;
       localStorage.setItem(key, valoreCloud);
 
+      // Aggiorna Quill se presente
       if (window.quillInstances && window.quillInstances[key]) {
         const quill = window.quillInstances[key];
-        const selection = quill.getSelection();
         
-        quill.clipboard.dangerouslyPasteHTML(valoreCloud);
+        // Salva posizione cursore (solo se l'editor è attivo)
+        const hasFocus = quill.hasFocus();
+        const selection = hasFocus ? quill.getSelection() : null;
         
-        if (selection) {
-          setTimeout(() => quill.setSelection(selection), 0);
+        // Aggiorna contenuto (disabilita temporaneamente gli eventi)
+        const currentLength = quill.getLength();
+        quill.deleteText(0, currentLength);
+        quill.clipboard.dangerouslyPasteHTML(0, valoreCloud);
+        
+        // Ripristina cursore se l'editor era attivo
+        if (selection && hasFocus) {
+          setTimeout(() => {
+            try {
+              quill.setSelection(selection);
+            } catch (e) {
+              // Ignora errori se la posizione non è più valida
+            }
+          }, 0);
         }
       }
     }
@@ -415,23 +433,13 @@ window.addEventListener('DOMContentLoaded', () => {
   const initQuillEditorsOriginal = window.initQuillEditors;
   
   window.initQuillEditors = function() {
+    console.log("🎨 Inizializzazione Quill editors...");
+    
     if (typeof initQuillEditorsOriginal === 'function') {
       initQuillEditorsOriginal();
     }
     
-    setTimeout(() => {
-      if (window.quillInstances) {
-        Object.keys(window.quillInstances).forEach(key => {
-          const quill = window.quillInstances[key];
-          const textarea = document.querySelector(`textarea[data-key="${key}"]`);
-          
-          if (quill && textarea) {
-            configuraQuillConFirebase(quill, textarea, key);
-          }
-        });
-      }
-      
-      configuraTutteLeTextarea();
-    }, 500);
+    // Non serve più configurare Quill qui - è fatto dentro initQuillEditors()
+    console.log("✅ Quill editors pronti con sincronizzazione Firebase");
   };
 });
