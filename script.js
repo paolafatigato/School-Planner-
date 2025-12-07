@@ -513,6 +513,9 @@ function ripetiMateriePerAnnoIntero() {
   
   const dataFine = new Date(annoFine, 5, 30); // 30 giugno dell'anno di fine
 
+  let celleInserite = 0;
+  const promesseFirebase = []; // Array di promesse per salvare su Firebase
+
   // 2. Ripeti ciascuna cella nelle settimane successive, stesso giorno e ora
   celleDaRipetere.forEach(({ giorno, ora, classe, materia }) => {
     let data = new Date(dataInizio);
@@ -529,12 +532,26 @@ function ripetiMateriePerAnnoIntero() {
       const chiaveClasse = `cella-${dataISO}-${ora}-0`;
       const chiaveMateria = `cella-${dataISO}-${ora}-1`;
 
+      // Salva CLASSE
       if (classe && !localStorage.getItem(chiaveClasse)) {
         localStorage.setItem(chiaveClasse, classe);
+        
+        // ⭐ Salva anche su Firebase
+        if (typeof salvaOnline === 'function') {
+          promesseFirebase.push(salvaOnline(chiaveClasse, classe));
+        }
+        celleInserite++;
       }
 
+      // Salva MATERIA
       if (materia && !localStorage.getItem(chiaveMateria)) {
         localStorage.setItem(chiaveMateria, materia);
+        
+        // ⭐ Salva anche su Firebase
+        if (typeof salvaOnline === 'function') {
+          promesseFirebase.push(salvaOnline(chiaveMateria, materia));
+        }
+        celleInserite++;
       }
 
       // Passa alla settimana successiva senza errori di ora legale
@@ -542,10 +559,17 @@ function ripetiMateriePerAnnoIntero() {
     }
   });
 
-  alert("✅ Materie e classi ripetute fino al 30 giugno (celle vuote soltanto).");
-
-  // Facoltativo: aggiorna DOM
-  caricaDati();
+  // ⭐ Aspetta che tutte le celle siano salvate su Firebase
+  Promise.all(promesseFirebase).then(() => {
+    console.log(`✅ Ripetizione completata: ${celleInserite} celle inserite e sincronizzate su Firebase`);
+    alert(`✅ Materie e classi ripetute fino al 30 giugno (${celleInserite} celle inserite).\n\nLa sincronizzazione con Firebase è in corso...`);
+    
+    // Ricarica la pagina per mostrare le nuove celle
+    location.reload();
+  }).catch(err => {
+    console.error("❌ Errore durante la sincronizzazione:", err);
+    alert("⚠️ Celle inserite in localStorage, ma potrebbero esserci problemi con la sincronizzazione su Firebase.");
+  });
 }
 
 function mostraOrarioSettimana() {
@@ -1383,6 +1407,7 @@ function spostaRisultatiSeMobile() {
 }
 
 window.addEventListener("resize", spostaRisultatiSeMobile);
+
 
 
 
