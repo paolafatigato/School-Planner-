@@ -15,7 +15,9 @@ const firebaseConfig = {
 
 let db = null;
 let firebaseInitialized = false;
-let listenersAttivi = new Set(); // Traccia i listener già attivi
+let listenersAttivi = new Set();
+let tentativiRiconnessione = 0;
+const MAX_TENTATIVI = 5;
 
 // ⭐ INIZIALIZZA FIREBASE UNA SOLA VOLTA
 function initFirebase() {
@@ -32,6 +34,24 @@ function initFirebase() {
   try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
+    
+    // ⭐ Abilita persistenza offline
+    db.ref('.info/connected').on('value', (snapshot) => {
+      if (snapshot.val() === true) {
+        console.log('✅ Connesso a Firebase');
+        tentativiRiconnessione = 0;
+      } else {
+        console.log('⚠️ Disconnesso da Firebase - tentativo riconnessione...');
+        tentativiRiconnessione++;
+        
+        if (tentativiRiconnessione < MAX_TENTATIVI) {
+          setTimeout(() => {
+            console.log(`🔄 Tentativo ${tentativiRiconnessione}/${MAX_TENTATIVI}`);
+          }, 2000);
+        }
+      }
+    });
+    
     firebaseInitialized = true;
     console.log("✅ Firebase inizializzato con successo");
     return true;
@@ -42,18 +62,18 @@ function initFirebase() {
 }
 
 // ===============================
-// SALVA ONLINE con timestamp
+// SALVA ONLINE con retry
 // ===============================
-function salvaOnline(key, value) {
+function salvaOnline(key, value, retry = 0) {
   if (!db) {
     console.warn("⚠️ Database non disponibile");
-    return;
+    return Promise.reject('Database non disponibile');
   }
   
   const timestamp = new Date().getTime();
   const dispositivo = /Mobile|Android|iPhone/.test(navigator.userAgent) ? 'phone' : 'pc';
   
-  db.ref('dati/' + key).set({
+  return db.ref('dati/' + key).set({
     valore: value,
     timestamp: timestamp,
     dispositivo: dispositivo,
@@ -62,20 +82,45 @@ function salvaOnline(key, value) {
     console.log(`✅ Salvato su Firebase: ${key}`);
   }).catch(err => {
     console.error("❌ Errore salvataggio Firebase:", err);
+    
+    // Retry automatico fino a 3 volte
+    if (retry < 3) {
+      console.log(`🔄 Retry salvataggio ${retry + 1}/3...`);
+      return new Promise(resolve => {
+        setTimeout(() => {
+          resolve(salvaOnline(key, value, retry + 1));
+        }, 2000);
+      });
+    }
   });
 }
 
 // ===============================
-// LEGGI ONLINE (una volta sola)
+// LEGGI ONLINE con timeout
 // ===============================
-function leggiOnline(key) {
+function leggiOnline(key, timeout = 5000) {
   return new Promise((resolve) => {
     if (!db) {
       resolve(null);
       return;
     }
     
+    let resolved = false;
+    
+    // Timeout di sicurezza
+    const timeoutId = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        console.warn(`⏱️ Timeout lettura: ${key}`);
+        resolve(null);
+      }
+    }, timeout);
+    
     db.ref('dati/' + key).once('value', (snapshot) => {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(timeoutId);
+      
       const data = snapshot.val();
       if (data && data.valore !== undefined) {
         console.log(`📥 Letto da Firebase: ${key}`);
@@ -84,6 +129,9 @@ function leggiOnline(key) {
         resolve(null);
       }
     }).catch(err => {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(timeoutId);
       console.error("❌ Errore lettura Firebase:", err);
       resolve(null);
     });
@@ -96,11 +144,12 @@ function leggiOnline(key) {
 function ascoltaCambiamentiRealTime(key, textarea) {
   if (!db) return;
   
-  // Evita di creare listener multipli sulla stessa chiave
   if (listenersAttivi.has(key)) return;
   listenersAttivi.add(key);
 
-  db.ref('dati/' + key).on('value', (snapshot) => {
+  const ref = db.ref('dati/' + key);
+  
+  ref.on('value', (snapshot) => {
     const data = snapshot.val();
     if (!data || data.valore === undefined) return;
 
@@ -109,33 +158,29 @@ function ascoltaCambiamentiRealTime(key, textarea) {
     const valoreLocale = textarea.value;
     const timestampLocale = parseInt(textarea.dataset.timestamp || 0);
 
-    // Aggiorna solo se il cloud è più recente E diverso
+    // Aggiorna solo se cloud è più recente E diverso
     if (timestampCloud > timestampLocale && valoreCloud !== valoreLocale) {
-      console.log(`🔄 Aggiornamento real-time: ${key}`);
+      console.log(`🔄 Aggiornamento real-time: ${key} (${data.dispositivo})`);
       
-      // Aggiorna textarea
       textarea.value = valoreCloud;
       textarea.dataset.timestamp = timestampCloud;
       localStorage.setItem(key, valoreCloud);
 
-      // ⭐ Aggiorna anche Quill se presente
+      // Aggiorna Quill se presente
       if (window.quillInstances && window.quillInstances[key]) {
         const quill = window.quillInstances[key];
-        
-        // Salva posizione cursore
         const selection = quill.getSelection();
         
-        // Aggiorna contenuto
         quill.clipboard.dangerouslyPasteHTML(valoreCloud);
         
-        // Ripristina cursore se l'editor era attivo
         if (selection) {
-          setTimeout(() => {
-            quill.setSelection(selection);
-          }, 0);
+          setTimeout(() => quill.setSelection(selection), 0);
         }
       }
     }
+  }, (error) => {
+    console.error(`❌ Errore listener ${key}:`, error);
+    listenersAttivi.delete(key);
   });
 }
 
@@ -161,14 +206,12 @@ function salvaProfilo() {
 
   const timestamp = new Date().getTime();
 
-  // Salva in localStorage (cache locale)
   localStorage.setItem("profiloUtente", JSON.stringify(profilo));
   localStorage.setItem("materieInsegnate", JSON.stringify(profilo.materie));
   localStorage.setItem("iconaUtente", iconaSelezionata);
   localStorage.setItem("coloreIcona", coloreSelezionato);
   localStorage.setItem("profiloTimestamp", timestamp);
 
-  // 🔥 Salva online su Firebase
   if (db) {
     db.ref('profilo').set({
       profilo: profilo,
@@ -189,7 +232,7 @@ function salvaProfilo() {
 }
 
 // ===============================
-// CARICA profilo da online se più recente
+// CARICA profilo da online
 // ===============================
 function caricaProfiloOnline() {
   if (!db) return;
@@ -203,7 +246,6 @@ function caricaProfiloOnline() {
     
     const timestampLocale = parseInt(localStorage.getItem("profiloTimestamp") || 0);
     
-    // Se online è più recente, aggiorna
     if (data.timestamp > timestampLocale) {
       localStorage.setItem("profiloUtente", JSON.stringify(data.profilo));
       localStorage.setItem("materieInsegnate", JSON.stringify(data.profilo.materie));
@@ -214,12 +256,9 @@ function caricaProfiloOnline() {
       aggiornaIconaUtente();
       console.log("✅ Profilo aggiornato da Firebase");
       
-      // Ricrea le tabelle se siamo nella pagina planner
       if (typeof creaSettimane === 'function') {
         creaSettimane();
       }
-    } else {
-      console.log("✅ Profilo locale già aggiornato");
     }
   }).catch(err => {
     console.error("❌ Errore caricamento profilo:", err);
@@ -227,36 +266,64 @@ function caricaProfiloOnline() {
 }
 
 // ===============================
-// ⭐ CONFIGURA tutte le textarea
+// ⭐ SINCRONIZZAZIONE MASSIVA al caricamento
+// ===============================
+function sincronizzazioneMassiva() {
+  if (!db) return;
+  
+  console.log("🔄 Sincronizzazione massiva in corso...");
+  
+  // Carica TUTTI i dati da Firebase in una volta
+  db.ref('dati').once('value', (snapshot) => {
+    const datiCloud = snapshot.val();
+    if (!datiCloud) {
+      console.log("📭 Nessun dato su Firebase");
+      return;
+    }
+    
+    let aggiornamenti = 0;
+    
+    Object.keys(datiCloud).forEach(key => {
+      const data = datiCloud[key];
+      const textarea = document.querySelector(`textarea[data-key="${key}"]`);
+      
+      if (textarea && data.valore !== undefined) {
+        const timestampCloud = data.timestamp || 0;
+        const timestampLocale = parseInt(textarea.dataset.timestamp || 0);
+        
+        if (timestampCloud > timestampLocale) {
+          textarea.value = data.valore;
+          textarea.dataset.timestamp = timestampCloud;
+          localStorage.setItem(key, data.valore);
+          
+          // Aggiorna Quill
+          if (window.quillInstances && window.quillInstances[key]) {
+            window.quillInstances[key].clipboard.dangerouslyPasteHTML(data.valore);
+          }
+          
+          aggiornamenti++;
+        }
+      }
+    });
+    
+    console.log(`✅ Sincronizzazione completata: ${aggiornamenti} celle aggiornate`);
+  }).catch(err => {
+    console.error("❌ Errore sincronizzazione massiva:", err);
+  });
+}
+
+// ===============================
+// CONFIGURA textarea
 // ===============================
 function configuraTutteLeTextarea() {
   document.querySelectorAll('textarea[data-key]').forEach(textarea => {
     const key = textarea.dataset.key;
     if (!key) return;
 
-    // 1️⃣ Carica valore iniziale da Firebase (una volta)
-    leggiOnline(key).then(dataCloud => {
-      if (dataCloud && dataCloud.valore) {
-        const timestampCloud = dataCloud.timestamp || 0;
-        const timestampLocale = parseInt(textarea.dataset.timestamp || 0);
-        
-        if (timestampCloud > timestampLocale) {
-          textarea.value = dataCloud.valore;
-          textarea.dataset.timestamp = timestampCloud;
-          localStorage.setItem(key, dataCloud.valore);
-          
-          // Aggiorna Quill se presente
-          if (window.quillInstances && window.quillInstances[key]) {
-            window.quillInstances[key].clipboard.dangerouslyPasteHTML(dataCloud.valore);
-          }
-        }
-      }
-    });
-
-    // 2️⃣ Ascolta cambiamenti in tempo reale
+    // Ascolta cambiamenti real-time
     ascoltaCambiamentiRealTime(key, textarea);
 
-    // 3️⃣ Salva quando l'utente modifica (solo per textarea NON-Quill)
+    // Salva quando modifica (solo textarea NON-Quill)
     if (!textarea.dataset.listenerAttached && !textarea.classList.contains('editor-programma')) {
       const saveHandler = () => {
         const v = textarea.value;
@@ -275,35 +342,19 @@ function configuraTutteLeTextarea() {
 }
 
 // ===============================
-// ⭐ CONFIGURA Quill con sincronizzazione Firebase
+// CONFIGURA Quill
 // ===============================
 function configuraQuillConFirebase(quill, textarea, key) {
   if (!quill || !key) return;
   
-  console.log(`🎨 Configurazione Quill con Firebase per: ${key}`);
+  console.log(`🎨 Configurazione Quill: ${key}`);
   
-  // 1️⃣ Carica valore iniziale da Firebase
-  leggiOnline(key).then(dataCloud => {
-    if (dataCloud && dataCloud.valore && dataCloud.valore.trim()) {
-      const timestampCloud = dataCloud.timestamp || 0;
-      const timestampLocale = parseInt(textarea.dataset.timestamp || 0);
-      
-      if (timestampCloud > timestampLocale) {
-        quill.clipboard.dangerouslyPasteHTML(dataCloud.valore);
-        textarea.value = dataCloud.valore;
-        textarea.dataset.timestamp = timestampCloud;
-        localStorage.setItem(key, dataCloud.valore);
-      }
-    }
-  });
-  
-  // 2️⃣ Ascolta cambiamenti in tempo reale
+  // Ascolta cambiamenti real-time
   ascoltaCambiamentiRealTime(key, textarea);
   
-  // 3️⃣ Salva su Firebase quando Quill cambia
+  // Salva quando Quill cambia
   let saveTimeout;
   quill.on('text-change', (delta, oldDelta, source) => {
-    // Salva solo se il cambiamento è fatto dall'utente (non da codice)
     if (source === 'user') {
       const html = quill.root.innerHTML;
       const timestamp = new Date().getTime();
@@ -312,7 +363,6 @@ function configuraQuillConFirebase(quill, textarea, key) {
       textarea.dataset.timestamp = timestamp;
       localStorage.setItem(key, html);
       
-      // Debounce: salva su Firebase dopo 1 secondo di inattività
       clearTimeout(saveTimeout);
       saveTimeout = setTimeout(() => {
         salvaOnline(key, html);
@@ -322,35 +372,35 @@ function configuraQuillConFirebase(quill, textarea, key) {
 }
 
 // ===============================
-// ⭐ INIZIALIZZAZIONE AL CARICAMENTO
+// INIZIALIZZAZIONE
 // ===============================
 document.addEventListener('DOMContentLoaded', () => {
   console.log("🚀 Inizializzazione Firebase...");
   
-  // Inizializza Firebase
   if (initFirebase()) {
-    // Carica profilo
     caricaProfiloOnline();
     
-    // Aspetta che le tabelle siano create, poi configura
+    // Sincronizzazione massiva dopo 2 secondi
     setTimeout(() => {
+      sincronizzazioneMassiva();
       configuraTutteLeTextarea();
-    }, 1000);
+    }, 2000);
   }
 });
 
 // ===============================
-// RILEVA cambio finestra
+// FOCUS finestra
 // ===============================
 window.addEventListener('focus', () => {
-  console.log("🔄 Finestra in focus - ricarico profilo...");
+  console.log("🔄 Focus - risincronizzazione...");
   if (db) {
     caricaProfiloOnline();
+    sincronizzazioneMassiva();
   }
 });
 
 // ===============================
-// ⭐ OVERRIDE initQuillEditors per sincronizzazione
+// OVERRIDE initQuillEditors
 // ===============================
 window.addEventListener('DOMContentLoaded', () => {
   const initQuillEditorsOriginal = window.initQuillEditors;
@@ -360,7 +410,6 @@ window.addEventListener('DOMContentLoaded', () => {
       initQuillEditorsOriginal();
     }
     
-    // Configura Firebase per ogni istanza Quill
     setTimeout(() => {
       if (window.quillInstances) {
         Object.keys(window.quillInstances).forEach(key => {
@@ -373,7 +422,6 @@ window.addEventListener('DOMContentLoaded', () => {
         });
       }
       
-      // Riconfigura anche le textarea normali
       configuraTutteLeTextarea();
     }, 500);
   };
