@@ -786,11 +786,14 @@ function creaSettimane() {
       container.appendChild(btnGiu);
 
 
-          setupTooltipDinamico();
-
-          initQuillEditors();
-
-        }
+        setupTooltipDinamico();
+  initQuillEditors();
+  
+  // ⭐ SINCRONIZZA CON FIREBASE DOPO AVER CREATO LE TABELLE
+  if (typeof window.avviaSincronizzazioneFirebase === 'function') {
+    window.avviaSincronizzazioneFirebase();
+  }
+}
 
 function cambiaGiorno(direzione) {
   const dataStr = localStorage.getItem("dataSelezionata");
@@ -1323,5 +1326,6 @@ function spostaRisultatiSeMobile() {
 }
 
 window.addEventListener("resize", spostaRisultatiSeMobile);
+
 
 
