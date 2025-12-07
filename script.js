@@ -218,27 +218,27 @@ function initQuillEditors() {
     const key = textarea.dataset.key;
     const parent = textarea.parentElement;
 
-// 1) crea il wrapper + editor, ma NON rimuovere la textarea
+    // Crea wrapper + editor
     const wrapper = document.createElement('div');
     wrapper.className = 'quill-wrapper';
     const editor = document.createElement('div');
     editor.className = 'quill-editor';
 
- // Inserisci l'editor PRIMA della textarea e poi nascondi la textarea
     parent.insertBefore(wrapper, textarea);
     wrapper.appendChild(editor);
-    // nascondo ma la mantengo nel DOM per compatibilità
+    
+    // Nascondi textarea ma mantienila nel DOM
     textarea.style.position = 'absolute';
     textarea.style.left = '-10000px';
     textarea.style.width = '1px';
     textarea.style.height = '1px';
     textarea.style.opacity = '0';
 
-    // 2) toolbar unica
+    // Toolbar
     const toolbarOptions = [
-      [{ list: 'check' }],                      // checklist
-      ['bold', 'italic'],                       // grassetto/corsivo
-      [{ list: 'ordered' }, { list: 'bullet' }]// numerata/puntata
+      [{ list: 'check' }],
+      ['bold', 'italic'],
+      [{ list: 'ordered' }, { list: 'bullet' }]
     ];
 
     const quill = new Quill(editor, {
@@ -246,35 +246,96 @@ function initQuillEditors() {
       modules: { toolbar: toolbarOptions }
     });
 
-// 3) inizializza contenuto partendo dalla textarea (HTML se presente, altrimenti testo)
-    const saved = key ? localStorage.getItem(key) : null;
-    if (saved && saved.trim()) {
-      quill.clipboard.dangerouslyPasteHTML(saved);
-      textarea.value = saved; // allinea subito anche la textarea
-    } else if (textarea.value && textarea.value.trim()) {
-      // se hai testo semplice salvato in passato
-      quill.clipboard.dangerouslyPasteHTML(textarea.value);
+    // Salva istanza Quill globale
+    if (!window.quillInstances) window.quillInstances = {};
+    window.quillInstances[key] = quill;
+
+    // ⭐ CARICA DA FIREBASE PRIMA, POI DA LOCALSTORAGE
+    if (key && typeof leggiOnline === 'function') {
+      leggiOnline(key).then(dataCloud => {
+        let contenutoFinale = '';
+        let timestampFinale = 0;
+        
+        // Valore da Firebase
+        if (dataCloud && dataCloud.valore && dataCloud.valore.trim()) {
+          contenutoFinale = dataCloud.valore;
+          timestampFinale = dataCloud.timestamp || 0;
+        }
+        
+        // Valore da localStorage (solo se più recente)
+        const saved = localStorage.getItem(key);
+        const timestampLocale = parseInt(textarea.dataset.timestamp || 0);
+        
+        if (saved && saved.trim() && timestampLocale > timestampFinale) {
+          contenutoFinale = saved;
+          timestampFinale = timestampLocale;
+        }
+        
+        // Valore dalla textarea (solo se più recente)
+        if (textarea.value && textarea.value.trim() && !contenutoFinale) {
+          contenutoFinale = textarea.value;
+        }
+        
+        // Carica il contenuto più recente
+        if (contenutoFinale) {
+          quill.clipboard.dangerouslyPasteHTML(contenutoFinale);
+          textarea.value = contenutoFinale;
+          textarea.dataset.timestamp = timestampFinale;
+          localStorage.setItem(key, contenutoFinale);
+          console.log(`📝 Quill caricato: ${key}`);
+        }
+        
+        // ⭐ ATTIVA LISTENER REAL-TIME DOPO IL CARICAMENTO
+        if (typeof ascoltaCambiamentiRealTime === 'function') {
+          ascoltaCambiamentiRealTime(key, textarea);
+        }
+      });
+    } else {
+      // Fallback se Firebase non disponibile
+      const saved = key ? localStorage.getItem(key) : null;
+      if (saved && saved.trim()) {
+        quill.clipboard.dangerouslyPasteHTML(saved);
+        textarea.value = saved;
+      } else if (textarea.value && textarea.value.trim()) {
+        quill.clipboard.dangerouslyPasteHTML(textarea.value);
+      }
     }
 
-    // 4) sincronizza SEMPRE: Quill -> textarea (+ localStorage)
+    // ⭐ SYNC: Quill -> textarea -> localStorage + Firebase
+    let saveTimeout;
     const syncAll = () => {
       const html = quill.root.innerHTML;
-      textarea.value = html;                       // compatibilità con il tuo codice esistente
-      if (key) localStorage.setItem(key, html);    // mantieni anche lo storage
-      // Se in qualche punto ti serve anche il TESTO semplice:
-      // localStorage.setItem(key + ':text', quill.getText().trim());
+      const timestamp = new Date().getTime();
+      
+      textarea.value = html;
+      textarea.dataset.timestamp = timestamp;
+      
+      if (key) {
+        localStorage.setItem(key, html);
+        
+        // Salva su Firebase con debounce di 1 secondo
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => {
+          if (typeof salvaOnline === 'function') {
+            salvaOnline(key, html);
+          }
+        }, 1000);
+      }
     };
 
-    quill.on('text-change', syncAll);
+    quill.on('text-change', (delta, oldDelta, source) => {
+      // Salva solo se il cambiamento è dell'utente
+      if (source === 'user') {
+        syncAll();
+      }
+    });
 
-    // 5) mostra la toolbar SOLO quando l'editor ha focus (desktop + mobile)
+    // Focus per toolbar
     quill.on('selection-change', (range) => {
       if (range) {
         wrapper.classList.add('focus');
       } else {
-        // piccolo delay per consentire click sui controlli della toolbar
         setTimeout(() => {
-          // se non sto interagendo con la toolbar, chiudi
           if (!document.activeElement.closest('.ql-toolbar')) {
             wrapper.classList.remove('focus');
           }
@@ -284,12 +345,8 @@ function initQuillEditors() {
 
     textarea.dataset.quillified = '1';
     wrapper.dataset.key = key || '';
-
-    // 6) prima sincronizzazione (utile se caricato da textarea.value)
-    syncAll();
   });
 }
-
 
 function chiudiModale() {
   document.getElementById("modalProfilo").style.display = "none";
@@ -1326,6 +1383,7 @@ function spostaRisultatiSeMobile() {
 }
 
 window.addEventListener("resize", spostaRisultatiSeMobile);
+
 
 
 
