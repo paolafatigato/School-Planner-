@@ -35,20 +35,14 @@ function initFirebase() {
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
     
-    // ⭐ Abilita persistenza offline
+    // ⭐ Monitora connessione
     db.ref('.info/connected').on('value', (snapshot) => {
       if (snapshot.val() === true) {
         console.log('✅ Connesso a Firebase');
         tentativiRiconnessione = 0;
       } else {
-        console.log('⚠️ Disconnesso da Firebase - tentativo riconnessione...');
+        console.log('⚠️ Disconnesso da Firebase');
         tentativiRiconnessione++;
-        
-        if (tentativiRiconnessione < MAX_TENTATIVI) {
-          setTimeout(() => {
-            console.log(`🔄 Tentativo ${tentativiRiconnessione}/${MAX_TENTATIVI}`);
-          }, 2000);
-        }
       }
     });
     
@@ -83,7 +77,6 @@ function salvaOnline(key, value, retry = 0) {
   }).catch(err => {
     console.error("❌ Errore salvataggio Firebase:", err);
     
-    // Retry automatico fino a 3 volte
     if (retry < 3) {
       console.log(`🔄 Retry salvataggio ${retry + 1}/3...`);
       return new Promise(resolve => {
@@ -107,7 +100,6 @@ function leggiOnline(key, timeout = 5000) {
     
     let resolved = false;
     
-    // Timeout di sicurezza
     const timeoutId = setTimeout(() => {
       if (!resolved) {
         resolved = true;
@@ -158,15 +150,13 @@ function ascoltaCambiamentiRealTime(key, textarea) {
     const valoreLocale = textarea.value;
     const timestampLocale = parseInt(textarea.dataset.timestamp || 0);
 
-    // Aggiorna solo se cloud è più recente E diverso
     if (timestampCloud > timestampLocale && valoreCloud !== valoreLocale) {
-      console.log(`🔄 Aggiornamento real-time: ${key} (${data.dispositivo})`);
+      console.log(`🔄 Aggiornamento real-time: ${key} (da ${data.dispositivo})`);
       
       textarea.value = valoreCloud;
       textarea.dataset.timestamp = timestampCloud;
       localStorage.setItem(key, valoreCloud);
 
-      // Aggiorna Quill se presente
       if (window.quillInstances && window.quillInstances[key]) {
         const quill = window.quillInstances[key];
         const selection = quill.getSelection();
@@ -266,14 +256,22 @@ function caricaProfiloOnline() {
 }
 
 // ===============================
-// ⭐ SINCRONIZZAZIONE MASSIVA al caricamento
+// ⭐ SINCRONIZZAZIONE MASSIVA (chiamata DOPO creaSettimane)
 // ===============================
 function sincronizzazioneMassiva() {
-  if (!db) return;
+  if (!db) {
+    console.warn("⚠️ Database non disponibile per sincronizzazione");
+    return;
+  }
   
-  console.log("🔄 Sincronizzazione massiva in corso...");
+  const textareas = document.querySelectorAll('textarea[data-key]');
+  if (textareas.length === 0) {
+    console.warn("⚠️ Nessuna textarea trovata - le tabelle non sono ancora create");
+    return;
+  }
   
-  // Carica TUTTI i dati da Firebase in una volta
+  console.log(`🔄 Sincronizzazione massiva di ${textareas.length} celle...`);
+  
   db.ref('dati').once('value', (snapshot) => {
     const datiCloud = snapshot.val();
     if (!datiCloud) {
@@ -296,7 +294,6 @@ function sincronizzazioneMassiva() {
           textarea.dataset.timestamp = timestampCloud;
           localStorage.setItem(key, data.valore);
           
-          // Aggiorna Quill
           if (window.quillInstances && window.quillInstances[key]) {
             window.quillInstances[key].clipboard.dangerouslyPasteHTML(data.valore);
           }
@@ -316,14 +313,15 @@ function sincronizzazioneMassiva() {
 // CONFIGURA textarea
 // ===============================
 function configuraTutteLeTextarea() {
-  document.querySelectorAll('textarea[data-key]').forEach(textarea => {
+  const textareas = document.querySelectorAll('textarea[data-key]');
+  console.log(`🔧 Configurazione di ${textareas.length} textarea...`);
+  
+  textareas.forEach(textarea => {
     const key = textarea.dataset.key;
     if (!key) return;
 
-    // Ascolta cambiamenti real-time
     ascoltaCambiamentiRealTime(key, textarea);
 
-    // Salva quando modifica (solo textarea NON-Quill)
     if (!textarea.dataset.listenerAttached && !textarea.classList.contains('editor-programma')) {
       const saveHandler = () => {
         const v = textarea.value;
@@ -349,10 +347,8 @@ function configuraQuillConFirebase(quill, textarea, key) {
   
   console.log(`🎨 Configurazione Quill: ${key}`);
   
-  // Ascolta cambiamenti real-time
   ascoltaCambiamentiRealTime(key, textarea);
   
-  // Salva quando Quill cambia
   let saveTimeout;
   quill.on('text-change', (delta, oldDelta, source) => {
     if (source === 'user') {
@@ -372,6 +368,18 @@ function configuraQuillConFirebase(quill, textarea, key) {
 }
 
 // ===============================
+// ⭐ FUNZIONE PUBBLICA: chiamala DOPO creaSettimane()
+// ===============================
+window.avviaSincronizzazioneFirebase = function() {
+  console.log("🚀 Avvio sincronizzazione Firebase...");
+  
+  setTimeout(() => {
+    sincronizzazioneMassiva();
+    configuraTutteLeTextarea();
+  }, 500);
+};
+
+// ===============================
 // INIZIALIZZAZIONE
 // ===============================
 document.addEventListener('DOMContentLoaded', () => {
@@ -379,12 +387,6 @@ document.addEventListener('DOMContentLoaded', () => {
   
   if (initFirebase()) {
     caricaProfiloOnline();
-    
-    // Sincronizzazione massiva dopo 2 secondi
-    setTimeout(() => {
-      sincronizzazioneMassiva();
-      configuraTutteLeTextarea();
-    }, 2000);
   }
 });
 
@@ -395,7 +397,14 @@ window.addEventListener('focus', () => {
   console.log("🔄 Focus - risincronizzazione...");
   if (db) {
     caricaProfiloOnline();
-    sincronizzazioneMassiva();
+    
+    // Risincronizza se le tabelle esistono
+    setTimeout(() => {
+      const textareas = document.querySelectorAll('textarea[data-key]');
+      if (textareas.length > 0) {
+        sincronizzazioneMassiva();
+      }
+    }, 500);
   }
 });
 
