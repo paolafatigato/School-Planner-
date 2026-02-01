@@ -1,3 +1,150 @@
+
+/* ============================= */
+/* SCHERMATA LOGIN */
+/* ============================= */
+#login-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Quicksand', sans-serif;
+  z-index: 10000;
+}
+
+.login-container {
+  background: white;
+  padding: 40px;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  max-width: 400px;
+  width: 90%;
+}
+
+.login-title {
+  text-align: center;
+  color: #667eea;
+  margin-bottom: 30px;
+  font-size: 2.5em;
+}
+
+.login-input {
+  width: 100%;
+  padding: 15px;
+  margin-bottom: 15px;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  font-size: 1em;
+  box-sizing: border-box;
+  font-family: 'Quicksand', sans-serif;
+}
+
+.login-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.btn-primary {
+  width: 100%;
+  padding: 15px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 1.1em;
+  cursor: pointer;
+  margin-bottom: 10px;
+  font-family: 'Quicksand', sans-serif;
+}
+
+.btn-primary:hover {
+  background: #5568d3;
+}
+
+.btn-secondary {
+  width: 100%;
+  padding: 15px;
+  background: transparent;
+  color: #667eea;
+  border: 2px solid #667eea;
+  border-radius: 10px;
+  font-size: 1em;
+  cursor: pointer;
+  margin-bottom: 10px;
+  font-family: 'Quicksand', sans-serif;
+}
+
+.btn-secondary:hover {
+  background: #667eea;
+  color: white;
+}
+
+.btn-text {
+  width: 100%;
+  padding: 10px;
+  background: transparent;
+  color: #999;
+  border: none;
+  font-size: 0.9em;
+  cursor: pointer;
+  font-family: 'Quicksand', sans-serif;
+}
+
+.btn-text:hover {
+  color: #667eea;
+}
+
+.message-box {
+  margin-top: 15px;
+  padding: 10px;
+  border-radius: 5px;
+  text-align: center;
+  display: none;
+}
+
+/* ============================= */
+/* USER INFO E LOGOUT NELLA MODALE */
+/* ============================= */
+#user-info-modal {
+  background: #f5f5f5;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.user-email {
+  color: #667eea;
+  font-size: 1em;
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+
+#btn-logout-modal {
+  width: 100%;
+  padding: 10px 15px;
+  background: #ff6546;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1em;
+  font-family: 'Quicksand', sans-serif;
+  transition: background 0.3s ease;
+}
+
+#btn-logout-modal:hover {
+  background: #e55436;
+}
+
+#btn-logout-modal i {
+  margin-right: 5px;
+}
+
 /*CALENDAR*/
 #calendar .fc-toolbar-title {
   font-family: 'Quicksand', sans-serif;
@@ -11,6 +158,63 @@
   font-size: 1em;
   text-transform: uppercase;
   color: #ff6546;
+}
+
+#calendar {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto 24px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+}
+
+#calendar .fc-view-harness,
+#calendar .fc-scroller {
+  height: auto !important;
+}
+
+#calendar .fc-scroller {
+  overflow: visible !important;
+}
+
+#btn-logout,
+#user-info {
+  position: static;
+  z-index: 1;
+  display: block;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: 16px;
+}
+
+#btn-logout {
+  margin-bottom: 32px;
+  margin-top: 6px;
+  background-color: #ff6546;
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+#btn-logout:hover {
+  background-color: #e55436;
+  color: #ffffff;
+}
+
+#user-info {
+  margin-top: 16px;
+  color: #ffffff;
+  font-family: 'Quicksand', sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: rgba(0, 0, 0, 0.25);
+  padding: 6px 10px;
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
 }
 
 
@@ -119,6 +323,7 @@ html, body {
   right: 0;
   margin: 10px;
   cursor: pointer;
+  z-index: 6;
 }
 
 /* Cerchio bianco che appare su hover */
@@ -225,6 +430,9 @@ html, body {
   width: 80%;
   font-family: 'Quicksand', sans-serif;
   text-align: left;
+  max-height: 600px;
+  overflow-y: auto;
+  position: relative;
 }
 .modal-content label {
   display: block;
@@ -235,6 +443,12 @@ html, body {
 
 .modal-content input {
   width: 96%;
+  padding: 8px;
+  margin-bottom: 10px;
+}
+
+.modal-content select {
+  width: 98%;
   padding: 8px;
   margin-bottom: 10px;
 }
@@ -255,10 +469,25 @@ html, body {
 
 .modal-content .close {
   position: absolute;
-  top: 12px;
-  right: 20px;
-  font-size: 1.5em;
+  top: 10px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.08);
+  color: #5A00E0;
+  font-size: 1.4em;
+  line-height: 1;
   cursor: pointer;
+  padding: 0;
+}
+
+.modal-content .close:hover {
+  background: rgba(0, 0, 0, 0.16);
 }
 
 
@@ -638,17 +867,49 @@ background-color: #333;
 
 
 .btn-freccia {
-  background: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: transparent !important;
+  background-color: transparent !important;
   border: none;
   cursor: pointer;
   padding: 0;
 }
 
-.freccia-img {
-  width: 40px;
-  height: auto;
-  filter: brightness(0) invert(1); /* rende bianca l'immagine nera */
+.btn-freccia::before {
+  content: "";
+  width: 24px;
+  height: 24px;
+  background-color: var(--freccia-color, #ffffff);
   transition: transform 0.2s;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+}
+
+.btn-freccia:hover::before {
+  transform: scale(1.1);
+}
+
+.btn-freccia[data-freccia="su"]::before {
+  mask-image: url("img/up.png");
+  -webkit-mask-image: url("img/up.png");
+}
+
+.btn-freccia[data-freccia="giu"]::before {
+  mask-image: url("img/down.png");
+  -webkit-mask-image: url("img/down.png");
+}
+
+.freccia-img {
+  display: none;
 }
 
 .btn-freccia:hover .freccia-img {
@@ -708,14 +969,64 @@ td > button.btn-col-2 {
                     }
 
 
-            /* Larghezza colonna "classe" (2a colonna: dopo "Ora") */
+/* Larghezza colonna "classe" (2a colonna: dopo "Ora") 
 table.tabella-settimana tr:nth-of-type(n+3) td:nth-child(2),
 table.tabella-settimana tr:nth-of-type(2) th:nth-child(2) {
-  width: 72px;          /* prova 60–90px in base a gusto */
+  width: 72px;
+  max-width: 80px;
+  white-space: nowrap;
+}*/
+
+
+
+/* ⭐ NUOVO: Larghezza colonna "compiti" (4a colonna) 
+table.tabella-settimana tr:nth-of-type(n+3) td:nth-child(4),
+table.tabella-settimana tr:nth-of-type(2) th:nth-child(4) {
+  width: 190px;
+  max-width: 390px;
+  white-space: nowrap;
+}*/
+/* ============================= */
+/* LARGHEZZE COLONNE DINAMICHE */
+/* ============================= */
+
+/* Larghezza colonna "Ora" (sempre prima colonna) */
+table.tabella-settimana tr th:first-child,
+table.tabella-settimana tr td:first-child {
+  width: 45px;
+  max-width: 50px;
+}
+
+/* Larghezza colonna "Classe" */
+table.tabella-settimana tr th[data-col="classe"],
+table.tabella-settimana tr td:has(textarea[data-col="0"]) {
+  width: 70px;
   max-width: 80px;
   white-space: nowrap;
 }
 
+/* Larghezza colonna "Materia" (quando esiste) */
+table.tabella-settimana tr th[data-col="materia"],
+table.tabella-settimana tr td:has(textarea[data-col="1"]) {
+  width: 80px;
+  max-width: 90px;
+  white-space: nowrap;
+}
+
+/* Larghezza colonna "Programma" */
+table.tabella-settimana tr th[data-col="programma"],
+table.tabella-settimana tr td:has(textarea[data-col="2"]) {
+  width: 230px;
+  max-width: 390px;
+  white-space: normal;
+}
+
+/* Larghezza colonna "Compiti" */
+table.tabella-settimana tr th[data-col="compiti"],
+table.tabella-settimana tr td:has(textarea[data-col="3"]) {
+  width: auto;
+  min-width: 100px;
+}
 
 
 /*colonna programma con toolbar */
@@ -732,14 +1043,14 @@ table.tabella-settimana tr:nth-of-type(2) th:nth-child(2) {
 
 .quill-wrapper.focus .ql-toolbar {
   display: flex;           /* riga ordinata */
-  flex-wrap: wrap;
-  width: 93%;
-  gap: 2px;
+  flex-wrap: nowrap;
+  width: 100%;
+  gap: 4px;
   align-items: center;
   background: rgba(0,0,0,0.12);
   border: 0;
   border-radius: 10px;
-  padding: 4px 6px;
+  padding: 2px 4px;
   margin-bottom: 4px;
 }
 
@@ -759,7 +1070,10 @@ table.tabella-settimana tr:nth-of-type(2) th:nth-child(2) {
 
 /* Spaziature di gruppo */
 .quill-wrapper .ql-toolbar .ql-formats {
-  margin-right: 4px;
+  margin-right: 0;
+  display: flex;
+  gap: 4px;
+  align-items: center;
 }
 
 /* Contenitore editor “piatto” e trasparente */
@@ -781,6 +1095,58 @@ table.tabella-settimana tr:nth-of-type(2) th:nth-child(2) {
     border-radius: 6px;
   padding: 4px;
 }
+
+/* Mostra la A sottolineata con il colore selezionato */
+.quill-wrapper .ql-color .ql-picker-label {
+  color: #ffffff;
+  padding: 2px 6px;
+}
+.quill-wrapper .ql-color .ql-picker-label svg {
+  display: none;
+}
+.quill-wrapper .ql-color .ql-picker-label::before {
+  content: "A";
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1;
+  text-decoration: underline;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.4);
+}
+.quill-wrapper .ql-color .ql-picker-label[data-value="#000000"] { color: #000000; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#e60000"] { color: #e60000; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#ff9900"] { color: #ff9900; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#ffff00"] { color: #ffff00; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#008a00"] { color: #008a00; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#0066cc"] { color: #0066cc; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#9933ff"] { color: #9933ff; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#ffffff"] { color: #ffffff; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#facccc"] { color: #facccc; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#ffebcc"] { color: #ffebcc; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#ffffcc"] { color: #ffffcc; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#cce8cc"] { color: #cce8cc; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#cce0f5"] { color: #cce0f5; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#ebd6ff"] { color: #ebd6ff; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#bbbbbb"] { color: #bbbbbb; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#f06666"] { color: #f06666; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#ffc266"] { color: #ffc266; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#ffff66"] { color: #ffff66; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#66b966"] { color: #66b966; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#66a3e0"] { color: #66a3e0; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#c285ff"] { color: #c285ff; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#888888"] { color: #888888; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#a10000"] { color: #a10000; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#b26b00"] { color: #b26b00; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#b2b200"] { color: #b2b200; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#006100"] { color: #006100; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#0047b2"] { color: #0047b2; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#6b24b2"] { color: #6b24b2; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#444444"] { color: #444444; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#5c0000"] { color: #5c0000; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#663d00"] { color: #663d00; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#666600"] { color: #666600; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#003700"] { color: #003700; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#002966"] { color: #002966; }
+.quill-wrapper .ql-color .ql-picker-label[data-value="#3d1466"] { color: #3d1466; }
 
 /* la barra NON deve bloccare i tocchi fuori dai suoi bottoni */
 #floating-quill-toolbar,
@@ -966,6 +1332,21 @@ button#tornaCalendario{
   padding: 6px;
 }
 
+/* Toolbar Quill su una sola riga in mobile */
+.quill-wrapper.focus .ql-toolbar {
+  flex-wrap: nowrap;
+  gap: 1px;
+  padding: 2px 4px;
+  width: 100%;
+}
+.quill-wrapper .ql-toolbar .ql-formats {
+  margin-right: 2px;
+}
+.quill-wrapper .ql-toolbar button,
+.quill-wrapper .ql-toolbar .ql-picker {
+  padding: 2px;
+}
+
 
 
 /* Desktop: toolbar interna visibile solo al focus 
@@ -983,7 +1364,7 @@ button#tornaCalendario{
   } */
 
 
-/* la barra mobile resta davvero “nascosta” quando spenta
+/* la barra mobile resta davvero “nascosta” quando spenta */
 .floating-quill-toolbar[aria-hidden="true"]{
   visibility: hidden;
   opacity: 0;
@@ -991,8 +1372,314 @@ button#tornaCalendario{
 .floating-quill-toolbar[aria-hidden="false"]{
   visibility: visible;
   opacity: 1;
-}*/
-
+}
 
 }
 
+/* ============================= */
+/* TEMI (colorato / chiaro / scuro) */
+/* ============================= */
+body.tema-chiaro {
+  --bg: #fff7fb;
+  --text: #241b22;
+  --surface: #ffffff;
+  --surface-2: #ffeef7;
+  --freccia-color: hsla(346,100%,62%,1);
+  --primary: #b04ad9;
+  --primary-contrast: #ffffff;
+  --secondary: #ff7aa2;
+  --secondary-contrast: #ffffff;
+  --accent: #ff8a4f;
+  --accent-contrast: #ffffff;
+  --border: #e9b9d2;
+  --border-gradient-start: #ffd9c7;
+  --border-gradient-end: #f3c6d8;
+  --muted: #6b5565;
+  --shadow: rgba(176, 74, 217, 0.18);
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+body.tema-scuro {
+  --bg: #0f1118;
+  --text: #f2f4fb;
+  --surface: #171a24;
+  --surface-2: #1f2431;
+  --freccia-color: hsla(166,100%,62%,1);
+  --primary: #7aa2ff;
+  --primary-contrast: #0b1022;
+  --secondary: #4bd8c8;
+  --secondary-contrast: #0b1a19;
+  --accent: #ff8f6a;
+  --accent-contrast: #20110b;
+  --border: #2c3342;
+  --muted: #b4bbcc;
+  --shadow: rgba(122, 162, 255, 0.22);
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+body.tema-chiaro #grad1,
+body.tema-chiaro #grad2,
+body.tema-scuro #grad1,
+body.tema-scuro #grad2 {
+  display: none;
+}
+
+body.tema-chiaro h1 {
+  color: var(--accent);
+}
+
+body.tema-chiaro label {
+  color: var(--primary);
+}
+
+body.tema-scuro h1,
+body.tema-scuro label {
+  color: var(--primary);
+}
+
+body.tema-chiaro .modal-content {
+  background-color: var(--surface);
+  color: var(--text);
+  box-shadow: 0 18px 50px var(--shadow);
+}
+
+body.tema-scuro .modal-content {
+  background-color: #f3e6ff;
+  color: #241b22;
+  box-shadow: 0 18px 50px rgba(90, 0, 224, 0.18);
+}
+
+body.tema-chiaro .modal-content label {
+  color: var(--primary);
+}
+
+body.tema-scuro .modal-content label {
+  color: #5A00E0;
+}
+
+body.tema-chiaro table,
+body.tema-chiaro .tabella-settimana,
+body.tema-chiaro .tabella-risultati {
+  background-color: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+  border: 1px solid transparent;
+  border-image: linear-gradient(135deg, var(--border-gradient-start), var(--border-gradient-end)) 1;
+}
+
+body.tema-scuro table,
+body.tema-scuro .tabella-settimana,
+body.tema-scuro .tabella-risultati {
+  background-color: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+body.tema-scuro table th,
+body.tema-scuro table td {
+  border-color: var(--border);
+}
+
+body.tema-chiaro table th,
+body.tema-chiaro table td {
+  border-color: var(--border);
+}
+
+body.tema-chiaro textarea {
+  background-color: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+body.tema-scuro textarea {
+  background-color: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border);
+}
+body.tema-chiaro .th-settimane {
+  background: linear-gradient(135deg, #ffe4d6 0%, #ffd9e9 100%);
+  color: var(--primary);
+}
+
+body.tema-scuro .th-settimane {
+  background: linear-gradient(135deg, #3a1b6e 0%, #1e3a52 100%);
+  color: var(--primary);
+}
+
+body.tema-chiaro table.tabella-settimana tr:nth-of-type(2),
+body.tema-scuro table.tabella-settimana tr:nth-of-type(2) {
+  background-color: var(--secondary);
+  color: var(--secondary-contrast);
+}
+
+body.tema-chiaro .titolo-data,
+body.tema-scuro .titolo-data {
+  color: var(--secondary);
+}
+
+body.tema-chiaro .gradt1,
+body.tema-chiaro .gradt2,
+body.tema-chiaro .gradt3,
+body.tema-scuro .gradt1,
+body.tema-scuro .gradt2,
+body.tema-scuro .gradt3 {
+  background-image: none;
+  -webkit-background-clip: initial;
+  background-clip: initial;
+  color: var(--primary);
+}
+body.tema-chiaro .quill-wrapper .ql-editor {
+  color: #000000;
+}
+body.tema-chiaro .modal-content h3,
+body.tema-scuro .modal-content h3 {
+  color: var(--primary);
+}
+
+body.tema-chiaro .btn-primary,
+body.tema-scuro .btn-primary {
+  background: var(--primary);
+  color: var(--primary-contrast);
+}
+
+body.tema-chiaro .btn-primary {
+  background: linear-gradient(135deg, #ffb38a 0%, #ff82b1 100%);
+  color: #ffffff;
+}
+
+body.tema-chiaro .btn-primary:hover,
+body.tema-scuro .btn-primary:hover {
+  filter: brightness(0.95);
+}
+
+body.tema-chiaro .btn-secondary,
+body.tema-scuro .btn-secondary {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+body.tema-chiaro .btn-secondary {
+  background: linear-gradient(135deg, #ffe0ee 0%, #ffd8c6 100%);
+  color: #a23bcf;
+  border-color: #f3c6d8;
+}
+
+body.tema-chiaro button {
+  background: linear-gradient(135deg, #ffb38a 0%, #ff82b1 100%);
+  color: #ffffff;
+}
+
+body.tema-chiaro button:hover,
+body.tema-chiaro #tornaCalendario:hover,
+body.tema-chiaro #clearStorage:hover,
+body.tema-chiaro #pulsante-ripeti:hover,
+body.tema-chiaro .clear:hover {
+  background: linear-gradient(135deg, #ff9a6f 0%, #ff6fa6 100%);
+  color: #ffffff;
+}
+
+body.tema-chiaro #clearStorage {
+  background: linear-gradient(135deg, #2b0a3a 0%, #0b0b12 100%);
+  color: #ffffff;
+}
+
+body.tema-chiaro #clearStorage:hover {
+  background: linear-gradient(135deg, #21072d 0%, #07070c 100%);
+}
+
+body.tema-chiaro .clear[onclick="cancellaDaSettimanaCorrente()"] {
+  background: linear-gradient(135deg, #d9a7ff 0%, #ffb37a 100%);
+  color: #3b113f;
+}
+
+body.tema-chiaro .clear[onclick="cancellaDaSettimanaCorrente()"]:hover {
+  background: linear-gradient(135deg, #c98efc 0%, #ffa065 100%);
+  color: #2d0d30;
+}
+
+body.tema-chiaro #titoloPlanner {
+  background: linear-gradient(135deg, #ff9a6f 0%, #ff6fa6 45%, #b04ad9 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+body.tema-scuro #titoloPlanner {
+  background: linear-gradient(135deg, #c08bff 0%, var(--primary) 45%, hsla(166,100%,62%,1) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+body.tema-chiaro .btn-secondary:hover,
+body.tema-scuro .btn-secondary:hover {
+  background: var(--primary);
+  color: var(--primary-contrast);
+}
+
+body.tema-chiaro #btn-logout,
+body.tema-scuro #btn-logout,
+body.tema-chiaro #btn-logout-modal,
+body.tema-scuro #btn-logout-modal {
+  background-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+body.tema-chiaro #btn-logout:hover,
+body.tema-scuro #btn-logout:hover,
+body.tema-chiaro #btn-logout-modal:hover,
+body.tema-scuro #btn-logout-modal:hover {
+  filter: brightness(0.95);
+}
+body.tema-scuro button {
+  background: linear-gradient(135deg, #2a0f4f 0%, var(--primary) 100%);
+  color: #f2f4fb;
+}
+
+body.tema-scuro button:hover,
+body.tema-scuro #tornaCalendario:hover,
+body.tema-scuro #clearStorage:hover,
+body.tema-scuro #pulsante-ripeti:hover,
+body.tema-scuro .clear:hover {
+  background: linear-gradient(135deg, #230b43 0%, var(--primary) 100%);
+  color: #f2f4fb;
+}
+
+body.tema-scuro .btn-primary {
+  background: linear-gradient(135deg, #3f1b7a 0%, var(--primary) 100%);
+  color: #f2f4fb;
+}
+
+body.tema-scuro .btn-secondary {
+  background: linear-gradient(135deg, #2f2b55 0%, #1e3a52 100%);
+  color: #cfd6ff;
+  border-color: #5a4fb0;
+}
+
+body.tema-scuro #btn-logout,
+body.tema-scuro #btn-logout-modal {
+  background: linear-gradient(135deg, #5a1e4c 0%, #2b1b4a 100%);
+  color: #f6e8ff;
+}
+
+body.tema-chiaro #calendar .fc-toolbar-title,
+body.tema-scuro #calendar .fc-toolbar-title {
+  color: var(--primary);
+}
+
+body.tema-chiaro #calendar .fc-col-header-cell-cushion,
+body.tema-scuro #calendar .fc-col-header-cell-cushion {
+  color: var(--secondary);
+}
+
+body.tema-chiaro #user-info {
+  background-color: rgba(90, 0, 224, 0.2);
+  color: #ffffff;
+}
+
+body.tema-scuro #user-info {
+  background-color: rgba(140, 107, 255, 0.22);
+  color: var(--text);
+}
