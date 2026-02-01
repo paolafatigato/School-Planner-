@@ -1,331 +1,13 @@
 // ===============================
 // SINCRONIZZAZIONE FIREBASE
+// (Versione multi-utente - usa le variabili da firebase-auth-multiuser.js)
 // ===============================
 
-// 🔥 Configurazione Firebase (sostituisci con i tuoi dati)
-const firebaseConfig = {
-  apiKey: "AIzaSyBcd1234567890abcdefghijkl",
-  authDomain: "schoolbank-realtime.firebaseapp.com",
-  databaseURL: "https://schoolbank-realtime-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "schoolbank-realtime",
-  storageBucket: "schoolbank-realtime.appspot.com",
-  messagingSenderId: "1083482501584",
-  appId: "1:1083482501584:web:abc123def456"
-};
+// ⚠️ NIENTE configurazione qui! È già in firebase-auth-multiuser.js
 
-let db = null;
-let firebaseInitialized = false;
 let listenersAttivi = new Set();
 let tentativiRiconnessione = 0;
 const MAX_TENTATIVI = 5;
-
-// ⭐ INIZIALIZZA FIREBASE UNA SOLA VOLTA
-function initFirebase() {
-  if (typeof firebase === 'undefined') {
-    console.error("❌ Firebase SDK non caricato!");
-    return false;
-  }
-  
-  if (firebaseInitialized) {
-    console.log("✅ Firebase già inizializzato");
-    return true;
-  }
-
-  try {
-    firebase.initializeApp(firebaseConfig);
-    db = firebase.database();
-    
-    // ⭐ Monitora connessione
-    db.ref('.info/connected').on('value', (snapshot) => {
-      if (snapshot.val() === true) {
-        console.log('✅ Connesso a Firebase');
-        tentativiRiconnessione = 0;
-      } else {
-        console.log('⚠️ Disconnesso da Firebase');
-        tentativiRiconnessione++;
-      }
-    });
-    
-    firebaseInitialized = true;
-    console.log("✅ Firebase inizializzato con successo");
-    return true;
-  } catch (err) {
-    console.error("❌ Errore inizializzazione Firebase:", err);
-    return false;
-  }
-}
-
-// ===============================
-// SALVA ONLINE con retry
-// ===============================
-function salvaOnline(key, value, retry = 0) {
-  if (!db) {
-    console.warn("⚠️ Database non disponibile");
-    return Promise.reject('Database non disponibile');
-  }
-  
-  const timestamp = new Date().getTime();
-  const dispositivo = /Mobile|Android|iPhone/.test(navigator.userAgent) ? 'phone' : 'pc';
-  
-  return db.ref('dati/' + key).set({
-    valore: value,
-    timestamp: timestamp,
-    dispositivo: dispositivo,
-    dataModifica: new Date().toISOString()
-  }).then(() => {
-    console.log(`✅ Salvato su Firebase: ${key}`);
-  }).catch(err => {
-    console.error("❌ Errore salvataggio Firebase:", err);
-    
-    if (retry < 3) {
-      console.log(`🔄 Retry salvataggio ${retry + 1}/3...`);
-      return new Promise(resolve => {
-        setTimeout(() => {
-          resolve(salvaOnline(key, value, retry + 1));
-        }, 2000);
-      });
-    }
-  });
-}
-
-// ===============================
-// LEGGI ONLINE con timeout
-// ===============================
-function leggiOnline(key, timeout = 5000) {
-  return new Promise((resolve) => {
-    if (!db) {
-      resolve(null);
-      return;
-    }
-    
-    let resolved = false;
-    
-    const timeoutId = setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        console.warn(`⏱️ Timeout lettura: ${key}`);
-        resolve(null);
-      }
-    }, timeout);
-    
-    db.ref('dati/' + key).once('value', (snapshot) => {
-      if (resolved) return;
-      resolved = true;
-      clearTimeout(timeoutId);
-      
-      const data = snapshot.val();
-      if (data && data.valore !== undefined) {
-        console.log(`📥 Letto da Firebase: ${key}`);
-        resolve(data);
-      } else {
-        resolve(null);
-      }
-    }).catch(err => {
-      if (resolved) return;
-      resolved = true;
-      clearTimeout(timeoutId);
-      console.error("❌ Errore lettura Firebase:", err);
-      resolve(null);
-    });
-  });
-}
-
-// ===============================
-// ⭐ ASCOLTA CAMBIAMENTI IN TEMPO REALE
-// ===============================
-function ascoltaCambiamentiRealTime(key, textarea) {
-  if (!db) return;
-  
-  if (listenersAttivi.has(key)) {
-    console.log(`⚠️ Listener già attivo per: ${key}`);
-    return;
-  }
-  listenersAttivi.add(key);
-
-  const ref = db.ref('dati/' + key);
-  
-  ref.on('value', (snapshot) => {
-    const data = snapshot.val();
-    if (!data || data.valore === undefined) return;
-
-    const valoreCloud = data.valore;
-    const timestampCloud = data.timestamp || 0;
-    const valoreLocale = textarea.value;
-    const timestampLocale = parseInt(textarea.dataset.timestamp || 0);
-
-    // Aggiorna solo se cloud è più recente E diverso
-    if (timestampCloud > timestampLocale && valoreCloud !== valoreLocale) {
-      console.log(`🔄 Aggiornamento real-time: ${key} (da ${data.dispositivo})`);
-      
-      textarea.value = valoreCloud;
-      textarea.dataset.timestamp = timestampCloud;
-      localStorage.setItem(key, valoreCloud);
-
-      // Aggiorna Quill se presente
-      if (window.quillInstances && window.quillInstances[key]) {
-        const quill = window.quillInstances[key];
-        
-        // Salva posizione cursore (solo se l'editor è attivo)
-        const hasFocus = quill.hasFocus();
-        const selection = hasFocus ? quill.getSelection() : null;
-        
-        // Aggiorna contenuto (disabilita temporaneamente gli eventi)
-        const currentLength = quill.getLength();
-        quill.deleteText(0, currentLength);
-        quill.clipboard.dangerouslyPasteHTML(0, valoreCloud);
-        
-        // Ripristina cursore se l'editor era attivo
-        if (selection && hasFocus) {
-          setTimeout(() => {
-            try {
-              quill.setSelection(selection);
-            } catch (e) {
-              // Ignora errori se la posizione non è più valida
-            }
-          }, 0);
-        }
-      }
-    }
-  }, (error) => {
-    console.error(`❌ Errore listener ${key}:`, error);
-    listenersAttivi.delete(key);
-  });
-}
-
-// ===============================
-// SINCRONIZZA profilo utente
-// ===============================
-function salvaProfilo() {
-  const profilo = {
-    nome: document.getElementById("inputNome").value.trim(),
-    cognome: document.getElementById("inputCognome").value.trim(),
-    scuola: document.getElementById("inputScuola").value.trim(),
-    materie: [
-      document.getElementById("materia1").value.trim(),
-      document.getElementById("materia2").value.trim(),
-      document.getElementById("materia3").value.trim(),
-    ].filter(Boolean)
-  };
-
-  if (!profilo.materie.length) {
-    alert("Devi inserire almeno una materia.");
-    return;
-  }
-
-  const timestamp = new Date().getTime();
-
-  localStorage.setItem("profiloUtente", JSON.stringify(profilo));
-  localStorage.setItem("materieInsegnate", JSON.stringify(profilo.materie));
-  localStorage.setItem("iconaUtente", iconaSelezionata);
-  localStorage.setItem("coloreIcona", coloreSelezionato);
-  localStorage.setItem("profiloTimestamp", timestamp);
-
-  if (db) {
-    db.ref('profilo').set({
-      profilo: profilo,
-      icona: iconaSelezionata,
-      colore: coloreSelezionato,
-      timestamp: timestamp,
-      ultimoAggiornamento: new Date().toISOString()
-    }).then(() => {
-      console.log("✅ Profilo salvato su Firebase");
-    }).catch(err => {
-      console.error("❌ Errore salvataggio profilo:", err);
-    });
-  }
-
-  aggiornaIconaUtente();
-  chiudiModale();
-  creaSettimane();
-}
-
-// ===============================
-// CARICA profilo da online
-// ===============================
-function caricaProfiloOnline() {
-  if (!db) return;
-  
-  db.ref('profilo').once('value', (snapshot) => {
-    const data = snapshot.val();
-    if (!data) {
-      console.log("📭 Nessun profilo su Firebase");
-      return;
-    }
-    
-    const timestampLocale = parseInt(localStorage.getItem("profiloTimestamp") || 0);
-    
-    if (data.timestamp > timestampLocale) {
-      localStorage.setItem("profiloUtente", JSON.stringify(data.profilo));
-      localStorage.setItem("materieInsegnate", JSON.stringify(data.profilo.materie));
-      localStorage.setItem("iconaUtente", data.icona);
-      localStorage.setItem("coloreIcona", data.colore);
-      localStorage.setItem("profiloTimestamp", data.timestamp);
-      
-      aggiornaIconaUtente();
-      console.log("✅ Profilo aggiornato da Firebase");
-      
-      if (typeof creaSettimane === 'function') {
-        creaSettimane();
-      }
-    }
-  }).catch(err => {
-    console.error("❌ Errore caricamento profilo:", err);
-  });
-}
-
-// ===============================
-// ⭐ SINCRONIZZAZIONE MASSIVA (chiamata DOPO creaSettimane)
-// ===============================
-function sincronizzazioneMassiva() {
-  if (!db) {
-    console.warn("⚠️ Database non disponibile per sincronizzazione");
-    return;
-  }
-  
-  const textareas = document.querySelectorAll('textarea[data-key]');
-  if (textareas.length === 0) {
-    console.warn("⚠️ Nessuna textarea trovata - le tabelle non sono ancora create");
-    return;
-  }
-  
-  console.log(`🔄 Sincronizzazione massiva di ${textareas.length} celle...`);
-  
-  db.ref('dati').once('value', (snapshot) => {
-    const datiCloud = snapshot.val();
-    if (!datiCloud) {
-      console.log("📭 Nessun dato su Firebase");
-      return;
-    }
-    
-    let aggiornamenti = 0;
-    
-    Object.keys(datiCloud).forEach(key => {
-      const data = datiCloud[key];
-      const textarea = document.querySelector(`textarea[data-key="${key}"]`);
-      
-      if (textarea && data.valore !== undefined) {
-        const timestampCloud = data.timestamp || 0;
-        const timestampLocale = parseInt(textarea.dataset.timestamp || 0);
-        
-        if (timestampCloud > timestampLocale) {
-          textarea.value = data.valore;
-          textarea.dataset.timestamp = timestampCloud;
-          localStorage.setItem(key, data.valore);
-          
-          if (window.quillInstances && window.quillInstances[key]) {
-            window.quillInstances[key].clipboard.dangerouslyPasteHTML(data.valore);
-          }
-          
-          aggiornamenti++;
-        }
-      }
-    });
-    
-    console.log(`✅ Sincronizzazione completata: ${aggiornamenti} celle aggiornate`);
-  }).catch(err => {
-    console.error("❌ Errore sincronizzazione massiva:", err);
-  });
-}
 
 // ===============================
 // CONFIGURA textarea
@@ -338,7 +20,10 @@ function configuraTutteLeTextarea() {
     const key = textarea.dataset.key;
     if (!key) return;
 
-    ascoltaCambiamentiRealTime(key, textarea);
+    // Usa le funzioni multiutente
+    if (typeof ascoltaCambiamentiRealTime === 'function') {
+      ascoltaCambiamentiRealTime(key, textarea);
+    }
 
     if (!textarea.dataset.listenerAttached && !textarea.classList.contains('editor-programma')) {
       const saveHandler = () => {
@@ -347,40 +32,15 @@ function configuraTutteLeTextarea() {
         
         textarea.dataset.timestamp = timestamp;
         localStorage.setItem(key, v);
-        salvaOnline(key, v);
+        
+        if (typeof salvaOnline === 'function') {
+          salvaOnline(key, v);
+        }
       };
 
       textarea.addEventListener("change", saveHandler);
       textarea.addEventListener("blur", saveHandler);
       textarea.dataset.listenerAttached = "true";
-    }
-  });
-}
-
-// ===============================
-// CONFIGURA Quill
-// ===============================
-function configuraQuillConFirebase(quill, textarea, key) {
-  if (!quill || !key) return;
-  
-  console.log(`🎨 Configurazione Quill: ${key}`);
-  
-  ascoltaCambiamentiRealTime(key, textarea);
-  
-  let saveTimeout;
-  quill.on('text-change', (delta, oldDelta, source) => {
-    if (source === 'user') {
-      const html = quill.root.innerHTML;
-      const timestamp = new Date().getTime();
-      
-      textarea.value = html;
-      textarea.dataset.timestamp = timestamp;
-      localStorage.setItem(key, html);
-      
-      clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(() => {
-        salvaOnline(key, html);
-      }, 1000);
     }
   });
 }
@@ -392,54 +52,20 @@ window.avviaSincronizzazioneFirebase = function() {
   console.log("🚀 Avvio sincronizzazione Firebase...");
   
   setTimeout(() => {
-    sincronizzazioneMassiva();
     configuraTutteLeTextarea();
   }, 500);
 };
-
-// ===============================
-// INIZIALIZZAZIONE
-// ===============================
-document.addEventListener('DOMContentLoaded', () => {
-  console.log("🚀 Inizializzazione Firebase...");
-  
-  if (initFirebase()) {
-    caricaProfiloOnline();
-  }
-});
 
 // ===============================
 // FOCUS finestra
 // ===============================
 window.addEventListener('focus', () => {
   console.log("🔄 Focus - risincronizzazione...");
-  if (db) {
-    caricaProfiloOnline();
-    
-    // Risincronizza se le tabelle esistono
-    setTimeout(() => {
-      const textareas = document.querySelectorAll('textarea[data-key]');
-      if (textareas.length > 0) {
-        sincronizzazioneMassiva();
-      }
-    }, 500);
-  }
-});
-
-// ===============================
-// OVERRIDE initQuillEditors
-// ===============================
-window.addEventListener('DOMContentLoaded', () => {
-  const initQuillEditorsOriginal = window.initQuillEditors;
   
-  window.initQuillEditors = function() {
-    console.log("🎨 Inizializzazione Quill editors...");
-    
-    if (typeof initQuillEditorsOriginal === 'function') {
-      initQuillEditorsOriginal();
+  setTimeout(() => {
+    const textareas = document.querySelectorAll('textarea[data-key]');
+    if (textareas.length > 0) {
+      configuraTutteLeTextarea();
     }
-    
-    // Non serve più configurare Quill qui - è fatto dentro initQuillEditors()
-    console.log("✅ Quill editors pronti con sincronizzazione Firebase");
-  };
+  }, 500);
 });
