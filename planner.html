@@ -8,9 +8,13 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
   
-  <!-- ⭐ AGGIUNGI FIREBASE SDK PRIMA DI TUTTO -->
+
+  <script src="cordova.js"></script>
+
+  <!-- ⭐ FIREBASE SDK - ORDINE IMPORTANTE! -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.min.js"></script>
 </head>
@@ -29,7 +33,7 @@
     <!-- Modale profilo -->
     <div id="modalProfilo" class="modal" style="display:none;">
       <div class="modal-content">
-        <span class="close" onclick="chiudiModale()">&times;</span>
+        <button class="close" type="button" onclick="chiudiModale()" aria-label="Chiudi">&times;</button>
         <h2>Il tuo profilo</h2>
 
         <label>Nome:</label>
@@ -50,7 +54,21 @@
         <label>Materia 3:</label>
         <input type="text" id="materia3"><br>
 
-        <h3>Scegli icona e colore</h3>
+        <label>Settimana:</label>
+        <select id="selezioneSettimana">
+          <option value="intera">Settimana intera (inclusa domenica)</option>
+          <option value="lunga">Settimana lunga (incluso sabato)</option>
+          <option value="corta">Settimana corta (fino a venerdì)</option>
+        </select><br>
+
+        <label>Tema:</label>
+        <select id="selezioneTema">
+          <option value="colorato">Colorato</option>
+          <option value="scuro">Scuro</option>
+          <option value="chiaro">Chiaro</option>
+        </select><br>
+
+        <h3>Scegli icona</h3>
 
         <!-- SCELTA ICONE -->
         <div id="iconeDisponibili" style="display: flex; gap: 10px; margin-bottom: 10px;">
@@ -67,7 +85,8 @@
           <div class="icona-opzione" data-src="img/iconaprof10.png" onclick="selezionaIcona(this)"></div>
         </div>
 
-        <!-- SCELTA COLORI -->
+        <!-- SCELTA COLORI (disattivata) -->
+        <!--
         <div id="coloriDisponibili" style="display: flex; gap: 10px;">
           <div class="colore-opzione" style="background-color: #daaafc;" onclick="selezionaColore(this)"></div>
           <div class="colore-opzione" style="background-color: #5A00E0;" onclick="selezionaColore(this)"></div>
@@ -77,8 +96,9 @@
           <div class="colore-opzione" style="background-color: hsla(29,100%,62%,1);" onclick="selezionaColore(this)"></div>
           <div class="colore-opzione" style="background-color: #333;" onclick="selezionaColore(this)"></div>
         </div>
+        -->
 
-        <button onclick="salvaProfilo()">Salva</button>
+        <button onclick="salvaProfiloAuth()">Salva</button>
       </div>
     </div>
 
@@ -130,39 +150,76 @@
   </div>
 
   <!-- ⭐ ORDINE CORRETTO DEGLI SCRIPT -->
+  <script src="firebase-auth-multiuser.js"></script>
   <script src="firebase-sync.js"></script>
   <script src="script.js"></script>
 
   <script>
-    // Recupera la data selezionata dal calendario
-    const dataInizio = new Date(localStorage.getItem('dataSelezionata'));
-    
-    if (isNaN(dataInizio)) {
-      alert("Errore: nessuna data selezionata. Torna al calendario.");
-      window.location.href = "index.html";
-    }
-
-    function getSettimaneDaData(data) {
-      const settimane = [];
-      for (let i = 0; i < 1; i++) {
-        const settimana = new Date(data);
-        settimana.setDate(data.getDate() + i * 7);
-        settimane.push(settimana.toISOString().slice(0, 10));
+    // Aspetta che l'utente sia autenticato prima di caricare
+    function inizializzaApp() {
+      const dataInizio = new Date(localStorage.getItem('dataSelezionata') || new Date());
+      
+      if (isNaN(dataInizio)) {
+        // Se non c'è una data, usa oggi
+        localStorage.setItem('dataSelezionata', new Date().toISOString().split('T')[0]);
       }
-      return settimane;
+
+      const titolo = document.getElementById("titoloPlanner");
+      if (titolo) {
+        titolo.textContent = "Planner";
+      }
     }
 
-    const settimane = getSettimaneDaData(dataInizio);
-    console.log("Settimane:", settimane);
+    // Nuova funzione per salvare profilo con auth
+    function salvaProfiloAuth() {
+      const profilo = {
+        nome: document.getElementById("inputNome").value.trim(),
+        cognome: document.getElementById("inputCognome").value.trim(),
+        scuola: document.getElementById("inputScuola").value.trim(),
+        materie: [
+          document.getElementById("materia1").value.trim(),
+          document.getElementById("materia2").value.trim(),
+          document.getElementById("materia3").value.trim(),
+        ].filter(Boolean)
+      };
 
-    const titolo = document.getElementById("titoloPlanner");
-    if (titolo) {
-      titolo.textContent = "Planner";
-    }
+      const tipoSettimana = document.getElementById("selezioneSettimana")?.value || "lunga";
+      profilo.tipoSettimana = tipoSettimana;
+      const temaApp = document.getElementById("selezioneTema")?.value || "colorato";
+      profilo.temaApp = temaApp;
 
-    document.addEventListener("DOMContentLoaded", () => {
+      if (!profilo.materie.length) {
+        alert("Devi inserire almeno una materia.");
+        return;
+      }
+
+      if (typeof getColorePupiniDaTema === "function") {
+        coloreSelezionato = getColorePupiniDaTema(temaApp);
+      }
+      profilo.icona = iconaSelezionata;
+      profilo.colore = coloreSelezionato;
+
+      // Salva su Firebase (multiuser)
+      if (typeof salvaProfiloMultiuser === 'function') {
+        salvaProfiloMultiuser(profilo);
+      }
+
+      // Salva anche in locale per cache
+      localStorage.setItem("profiloUtente", JSON.stringify(profilo));
+      localStorage.setItem("materieInsegnate", JSON.stringify(profilo.materie));
+      localStorage.setItem("iconaUtente", iconaSelezionata);
+      localStorage.setItem("coloreIcona", coloreSelezionato);
+      localStorage.setItem("tipoSettimana", tipoSettimana);
+      localStorage.setItem("temaApp", temaApp);
+
+      aggiornaIconaUtente();
+      applicaTema();
+      chiudiModale();
       creaSettimane();
-    });
+    }
+
+    // Inizializza quando il DOM è pronto
+    document.addEventListener("DOMContentLoaded", inizializzaApp);
   </script>
 
   <!-- Toolbar mobile flottante per Quill -->
