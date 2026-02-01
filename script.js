@@ -7,6 +7,48 @@ const orari = [8, 9, 10, 11, 12, 13];
 const colonne = ["classe", "materia", "programma", "compiti"];
 
 // ===============================
+// Impostazioni settimana
+// ===============================
+const TIPI_SETTIMANA = {
+  intera: {
+    giorniValidi: [0, 1, 2, 3, 4, 5, 6],
+    ordineGiorni: [1, 2, 3, 4, 5, 6, 0]
+  },
+  lunga: {
+    giorniValidi: [1, 2, 3, 4, 5, 6],
+    ordineGiorni: [1, 2, 3, 4, 5, 6]
+  },
+  corta: {
+    giorniValidi: [1, 2, 3, 4, 5],
+    ordineGiorni: [1, 2, 3, 4, 5]
+  }
+};
+
+function getConfigSettimana() {
+  const tipo = localStorage.getItem("tipoSettimana") || "lunga";
+  return TIPI_SETTIMANA[tipo] ? { tipo, ...TIPI_SETTIMANA[tipo] } : { tipo: "lunga", ...TIPI_SETTIMANA.lunga };
+}
+
+function getNumeroGiorniSettimana() {
+  return getConfigSettimana().giorniValidi.length;
+}
+
+function isGiornoValido(dataOrDayIndex) {
+  const day = dataOrDayIndex instanceof Date ? dataOrDayIndex.getDay() : dataOrDayIndex;
+  return getConfigSettimana().giorniValidi.includes(day);
+}
+
+function getOrdineGiorniSettimana() {
+  return getConfigSettimana().ordineGiorni;
+}
+
+function getFineSettimana(lunedi) {
+  const fine = new Date(lunedi);
+  fine.setDate(fine.getDate() + (getNumeroGiorniSettimana() - 1));
+  return fine;
+}
+
+// ===============================
 // Colori sfondo e testo sincronizzati (con classi diverse)
 // ===============================
 const grad1 = document.getElementById("grad1");
@@ -68,9 +110,35 @@ document.addEventListener("click", () => {
 let iconaSelezionata = localStorage.getItem("iconaUtente") || "img/iconaprof1.png";
 let coloreSelezionato = localStorage.getItem("coloreIcona") || "#5A00E0";
 
+const COLORI_PUPINI_PER_TEMA = {
+  colorato: "#5A00E0",
+  scuro: "#2a0f4f",
+  chiaro: "#b04ad9"
+};
+
+function getColorePupiniDaTema(tema = getTemaSelezionato()) {
+  return COLORI_PUPINI_PER_TEMA[tema] || COLORI_PUPINI_PER_TEMA.colorato;
+}
+
+function sincronizzaColorePupiniConTema(tema = getTemaSelezionato()) {
+  const colore = getColorePupiniDaTema(tema);
+  coloreSelezionato = colore;
+  localStorage.setItem("coloreIcona", colore);
+  aggiornaAnteprimaIcone(colore);
+  aggiornaIconaUtente();
+  return colore;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   localStorage.setItem("iconaUtente", iconaSelezionata);
   localStorage.setItem("coloreIcona", coloreSelezionato);
+  if (!localStorage.getItem("tipoSettimana")) {
+    localStorage.setItem("tipoSettimana", "lunga");
+  }
+  if (!localStorage.getItem("temaApp")) {
+    localStorage.setItem("temaApp", "colorato");
+  }
+  applicaTema();
   aggiornaIconaUtente();
 });
 
@@ -89,9 +157,23 @@ document.getElementById("userIcon").addEventListener("click", () => {
   document.getElementById("materia2").value = profilo.materie?.[1] || "";
   document.getElementById("materia3").value = profilo.materie?.[2] || "";
 
+  const selectSettimana = document.getElementById("selezioneSettimana");
+  if (selectSettimana) {
+    const tipoSalvato = localStorage.getItem("tipoSettimana") || profilo.tipoSettimana || "lunga";
+    selectSettimana.value = tipoSalvato;
+  }
+
+  const selectTema = document.getElementById("selezioneTema");
+  if (selectTema) {
+    const temaSalvato = localStorage.getItem("temaApp") || profilo.temaApp || "colorato";
+    selectTema.value = temaSalvato;
+  }
+
   document.querySelectorAll('.icona-opzione').forEach(div => {
     div.classList.toggle('selezionata', div.dataset.src === iconaSelezionata);
   });
+
+  coloreSelezionato = getColorePupiniDaTema();
 
   document.querySelectorAll('.colore-opzione').forEach(div => {
     const divColor = rgbToHex(getComputedStyle(div).backgroundColor);
@@ -121,20 +203,39 @@ function salvaProfilo() {
     ].filter(Boolean)
   };
 
+  const tipoSettimana = document.getElementById("selezioneSettimana")?.value || "lunga";
+  profilo.tipoSettimana = tipoSettimana;
+  const temaApp = document.getElementById("selezioneTema")?.value || "colorato";
+  profilo.temaApp = temaApp;
+
   if (!profilo.materie.length) {
     alert("Devi inserire almeno una materia.");
     return;
   }
 
+  coloreSelezionato = getColorePupiniDaTema(temaApp);
+  profilo.icona = iconaSelezionata;
+  profilo.colore = coloreSelezionato;
+
+  // Salva con autenticazione
+  if (typeof salvaProfiloMultiuser === 'function') {
+    salvaProfiloMultiuser(profilo).then(() => {
+      console.log("✅ Profilo salvato su Firebase");
+    });
+  }
+
+  // Salva anche locale
   localStorage.setItem("profiloUtente", JSON.stringify(profilo));
   localStorage.setItem("materieInsegnate", JSON.stringify(profilo.materie));
   localStorage.setItem("iconaUtente", iconaSelezionata);
   localStorage.setItem("coloreIcona", coloreSelezionato);
+  localStorage.setItem("tipoSettimana", tipoSettimana);
+  localStorage.setItem("temaApp", temaApp);
 
   aggiornaIconaUtente();
+  applicaTema();
   chiudiModale();
-  creaSettimane(); // Ricrea le tabelle con il numero corretto di colonne
-
+  creaSettimane();
 }
 
 // ===============================
@@ -174,7 +275,7 @@ function aggiornaAnteprimaIcone(colore) {
 
 function aggiornaIconaUtente() {
   const imgSrc = localStorage.getItem("iconaUtente");
-  const colore = localStorage.getItem("coloreIcona") || "#5A00E0";
+  const colore = getColorePupiniDaTema();
 
   const userImage = document.getElementById("userImage");
   const fallback = document.getElementById("userFallback");
@@ -196,6 +297,31 @@ function aggiornaIconaUtente() {
     fallback.style.display = "block";
     fallback.style.color = colore;
   }
+}
+
+// ===============================
+// Tema
+// ===============================
+function getTemaSelezionato() {
+  return localStorage.getItem("temaApp") || "colorato";
+}
+
+function applicaTema() {
+  const tema = getTemaSelezionato();
+  if (!document.body) return;
+
+  document.body.classList.remove("tema-colorato", "tema-chiaro", "tema-scuro");
+  document.body.classList.add(`tema-${tema}`);
+
+  const grad1 = document.getElementById("grad1");
+  const grad2 = document.getElementById("grad2");
+  if (grad1 && grad2) {
+    const mostraGradienti = tema === "colorato";
+    grad1.style.display = mostraGradienti ? "block" : "none";
+    grad2.style.display = mostraGradienti ? "block" : "none";
+  }
+
+  sincronizzaColorePupiniConTema(tema);
 }
 
 // ===============================
@@ -238,6 +364,7 @@ function initQuillEditors() {
     const toolbarOptions = [
       [{ list: 'check' }],
       ['bold', 'italic'],
+      [{ color: [] }],
       [{ list: 'ordered' }, { list: 'bullet' }]
     ];
 
@@ -310,6 +437,11 @@ function initQuillEditors() {
       textarea.value = html;
       textarea.dataset.timestamp = timestamp;
       
+      // ⭐ Segna questa modifica per evitare conflitti con Firebase
+      if (typeof segnaModificaLocale === 'function' && key) {
+        segnaModificaLocale(key);
+      }
+      
       if (key) {
         localStorage.setItem(key, html);
         
@@ -369,21 +501,49 @@ function cancellaDaSettimanaCorrente() {
   }
 
   const dataCorrente = new Date(dataSelezionata);
+  if (isNaN(dataCorrente)) {
+    alert("Data non valida. Torna al calendario e seleziona una data.");
+    return;
+  }
 
-  for (let chiave in localStorage) {
-    if (!chiave.startsWith("cella-")) continue;
+  // Calcola il 30 giugno dell'anno scolastico corrente
+  const annoFine = dataCorrente.getMonth() >= 8 ?
+    dataCorrente.getFullYear() + 1 :
+    dataCorrente.getFullYear();
+  const dataFine = new Date(annoFine, 5, 30);
 
-    const match = chiave.match(/^cella-(\d{4}-\d{2}-\d{2})-(\d)-(\d)$/);
-    if (!match) continue;
+  const promesseEliminazione = [];
 
-    const dataCella = new Date(match[1]);
-    if (dataCella >= dataCorrente) {
-      localStorage.removeItem(chiave);
+  // Cancella TUTTE le possibili celle dalla data selezionata fino al 30 giugno
+  for (let data = new Date(dataCorrente); data <= dataFine; data.setDate(data.getDate() + 1)) {
+    if (!isGiornoValido(data)) continue; // salta i giorni non validi
+
+    const dataISO = data.toISOString().split("T")[0];
+
+    for (let ora = 0; ora < orari.length; ora++) {
+      for (let col = 0; col < colonne.length; col++) {
+        const chiave = `cella-${dataISO}-${ora}-${col}`;
+        if (localStorage.getItem(chiave) !== null) {
+          localStorage.removeItem(chiave);
+        }
+
+        // ⭐ Elimina anche dal cloud per evitare il ripristino da Firebase
+        if (typeof eliminaOnline === 'function') {
+          promesseEliminazione.push(eliminaOnline(chiave));
+        }
+      }
     }
   }
 
-  alert("Celle cancellate dalla settimana corrente in poi.");
-  location.reload();
+  if (promesseEliminazione.length > 0) {
+    Promise.allSettled(promesseEliminazione).then(() => {
+      alert("Celle cancellate dalla settimana corrente in poi.");
+      location.reload();
+    });
+  } else {
+    alert("Celle cancellate dalla settimana corrente in poi.");
+    location.reload();
+  }
 }
 
 
@@ -480,14 +640,38 @@ function ripetiMateriePerAnnoIntero() {
     const valore = textarea.value.trim();
     if (!valore) return;
 
-    const giorno = parseInt(textarea.dataset.giorno);
     const ora = parseInt(textarea.dataset.ora);
 
+    // Ricava la data reale della cella dalla key (più affidabile di giorno/sett.
+    let dataISO = null;
+    const key = textarea.dataset.key;
+    if (key) {
+      const match = key.match(/^cella-(\d{4}-\d{2}-\d{2})-(\d)-(\d)$/);
+      if (match) dataISO = match[1];
+    }
+
+    // Fallback: calcola la data usando dataSelezionata + giorno (saltando la domenica)
+    if (!dataISO) {
+      const dataInizioFallback = new Date(localStorage.getItem("dataSelezionata"));
+      const giornoIndex = parseInt(textarea.dataset.giorno);
+      if (!isNaN(dataInizioFallback) && !isNaN(giornoIndex)) {
+        let dataTmp = new Date(dataInizioFallback);
+        let giorniAggiunti = 0;
+        while (giorniAggiunti < giornoIndex) {
+          dataTmp.setDate(dataTmp.getDate() + 1);
+          if (isGiornoValido(dataTmp)) giorniAggiunti++;
+        }
+        dataISO = dataTmp.toISOString().split("T")[0];
+      }
+    }
+
+    if (!dataISO) return;
+
     // Salva temporaneamente
-    const entryEsistente = celleDaRipetere.find(e => e.giorno === giorno && e.ora === ora);
+    const entryEsistente = celleDaRipetere.find(e => e.dataISO === dataISO && e.ora === ora);
     if (!entryEsistente) {
       celleDaRipetere.push({
-        giorno,
+        dataISO,
         ora,
         classe: col === 0 ? valore : "",
         materia: col === 1 ? valore : ""
@@ -517,20 +701,16 @@ function ripetiMateriePerAnnoIntero() {
   const promesseFirebase = []; // Array di promesse per salvare su Firebase
 
   // 2. Ripeti ciascuna cella nelle settimane successive, stesso giorno e ora
-  celleDaRipetere.forEach(({ giorno, ora, classe, materia }) => {
-    let data = new Date(dataInizio);
-
-    // Allinea la data al giorno corretto della settimana (0 = lunedì, 6 = sabato)
-    while (data.getDay() !== (giorno + 1)) {
-      data.setDate(data.getDate() + 1);
-    }
+  celleDaRipetere.forEach(({ dataISO, ora, classe, materia }) => {
+    let data = new Date(dataISO);
+    if (isNaN(data)) return;
 
     // Genera una nuova data per ogni settimana fino a dataFine
     while (data <= dataFine) {
-      const dataISO = data.toISOString().split("T")[0];
+      const dataRipetiISO = data.toISOString().split("T")[0];
 
-      const chiaveClasse = `cella-${dataISO}-${ora}-0`;
-      const chiaveMateria = `cella-${dataISO}-${ora}-1`;
+      const chiaveClasse = `cella-${dataRipetiISO}-${ora}-0`;
+      const chiaveMateria = `cella-${dataRipetiISO}-${ora}-1`;
 
       // Salva CLASSE
       if (classe && !localStorage.getItem(chiaveClasse)) {
@@ -584,7 +764,9 @@ function mostraOrarioSettimana() {
   }
 
   const orari = [8, 9, 10, 11, 12, 13];
-  const giorniNomi = ["", "LUN", "MAR", "MER", "GIO", "VEN", "SAB"];
+  const giorniLabel = ["DOM", "LUN", "MAR", "MER", "GIO", "VEN", "SAB"];
+  const giorniOrdine = getOrdineGiorniSettimana();
+  const giorniNomi = giorniOrdine.map(d => giorniLabel[d]);
   const mappa = {}; // mappa[oraIndex][giornoSettimana] = "3a", "2b"...
 
   // Trova il lunedì della settimana selezionata
@@ -593,11 +775,13 @@ function mostraOrarioSettimana() {
   const diff = lunedi.getDate() - giorno + (giorno === 0 ? -6 : 1);
   lunedi.setDate(diff);
 
-  // Crea array dei 6 giorni da lunedì a sabato
+  // Crea array dei giorni validi a partire dal lunedì
   const giorniValidi = [];
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < giorniOrdine.length; i++) {
+    const giornoIndice = giorniOrdine[i];
+    const offset = giornoIndice === 0 ? 6 : giornoIndice - 1;
     const giornoCorrente = new Date(lunedi);
-    giornoCorrente.setDate(lunedi.getDate() + i);
+    giornoCorrente.setDate(lunedi.getDate() + offset);
     giorniValidi.push(giornoCorrente);
   }
 
@@ -620,12 +804,12 @@ function mostraOrarioSettimana() {
   tabella.id = "tabella-orariosettimanale";
 
   const intestazione1 = document.createElement("tr");
-  intestazione1.innerHTML = `<th class="th-risultati" colspan="7">Orario settimanale</th>`;
+  intestazione1.innerHTML = `<th class="th-risultati" colspan="${giorniNomi.length + 1}">Orario settimanale</th>`;
   tabella.appendChild(intestazione1);
 
   const intestazione2 = document.createElement("tr");
   intestazione2.innerHTML = "<th>Ora</th>";
-  for (let g = 1; g <= 6; g++) {
+  for (let g = 0; g < giorniNomi.length; g++) {
     intestazione2.innerHTML += `<th>${giorniNomi[g]}</th>`;
   }
   tabella.appendChild(intestazione2);
@@ -633,10 +817,10 @@ function mostraOrarioSettimana() {
   for (let oraIndex = 0; oraIndex < orari.length; oraIndex++) {
     const tr = document.createElement("tr");
     tr.innerHTML = `<td>${orari[oraIndex]}</td>`;
-    for (let g = 1; g <= 6; g++) {
+    for (let g = 0; g < giorniNomi.length; g++) {
       const td = document.createElement("td");
       td.classList.add("td-orario");
-      td.textContent = mappa[oraIndex]?.[g] || "";
+      td.textContent = mappa[oraIndex]?.[g + 1] || "";
       tr.appendChild(td);
     }
     tabella.appendChild(tr);
@@ -707,9 +891,10 @@ function creaSettimane() {
   let dataCorrente = new Date(dataInizio);
   let giorniInseriti = 0;
   const numeroSettimane = 1;
+  const giorniPerSettimana = getNumeroGiorniSettimana();
 
-  while (giorniInseriti < numeroSettimane * 6) {
-    if (dataCorrente.getDay() !== 0) { // salta la domenica
+  while (giorniInseriti < numeroSettimane * giorniPerSettimana) {
+    if (isGiornoValido(dataCorrente)) {
 
 
       //pulsanti per scorrere tra settimane
@@ -719,6 +904,7 @@ function creaSettimane() {
 
         const pulsante = document.createElement("button");
         pulsante.classList.add("btn-freccia");
+        pulsante.dataset.freccia = "su";
         pulsante.onclick = () => cambiaGiorno(-1);
 
         const imgUp = document.createElement("img");
@@ -769,8 +955,11 @@ function creaSettimane() {
 
       const subHeader = tabella.insertRow();
       subHeader.insertCell().innerText = "Ora";
-      colonneFiltrate.forEach(col => {
-        subHeader.insertCell().innerText = col;
+
+colonneFiltrate.forEach(col => {
+  const th = subHeader.insertCell();
+  th.innerText = col;
+  th.dataset.col = col;
       });
 
       for (let ora = 0; ora < orari.length; ora++) {
@@ -799,8 +988,8 @@ function creaSettimane() {
             localStorage.setItem(chiave, textarea.value);
           });
 
-          textarea.setAttribute('data-settimana', Math.floor(giorniInseriti / 6));
-          textarea.setAttribute('data-giorno', giorniInseriti % 6);
+          textarea.setAttribute('data-settimana', Math.floor(giorniInseriti / giorniPerSettimana));
+          textarea.setAttribute('data-giorno', giorniInseriti % giorniPerSettimana);
           textarea.setAttribute('data-ora', ora);
           textarea.setAttribute('data-col', colOriginale);
 
@@ -850,6 +1039,7 @@ function creaSettimane() {
 
       const pulsante = document.createElement("button");
       pulsante.classList.add("btn-freccia");
+      pulsante.dataset.freccia = "giu";
       pulsante.onclick = () => cambiaGiorno(1);
 
       const imgDown = document.createElement("img");
@@ -882,8 +1072,8 @@ function cambiaGiorno(direzione) {
 
   data.setDate(data.getDate() + direzione);
 
-  // Salta la domenica
-  if (data.getDay() === 0) {
+  // Salta i giorni non validi
+  while (!isGiornoValido(data)) {
     data.setDate(data.getDate() + (direzione > 0 ? 1 : -1));
   }
 
@@ -921,12 +1111,13 @@ function recuperaProgramma(event) {
   const dataInizio = new Date(localStorage.getItem("dataSelezionata"));
   const settimanaIndex = parseInt(settimana);
   const giornoIndex = parseInt(giorno);
+  const giorniPerSettimana = getNumeroGiorniSettimana();
 
   let dataFocus = new Date(dataInizio);
   let giorniAggiunti = 0;
-  while (giorniAggiunti < (settimanaIndex * 6) + giornoIndex) {
+  while (giorniAggiunti < (settimanaIndex * giorniPerSettimana) + giornoIndex) {
     dataFocus.setDate(dataFocus.getDate() + 1);
-    if (dataFocus.getDay() !== 0) { // salta le domeniche
+    if (isGiornoValido(dataFocus)) {
       giorniAggiunti++;
     }
   }
@@ -1171,7 +1362,7 @@ function trovaOrarioClasse(event) {
     if (classe === classeValore) {
       const giornoSettimana = dataObj.getDay(); // 1 = lun, 6 = sab
 
-      if (giornoSettimana >= 0 && giornoSettimana <= 5) {
+      if (isGiornoValido(giornoSettimana)) {
         orarioClasse.push({
           giorno: giornoSettimana,
           ora: ora + 8,
@@ -1191,6 +1382,7 @@ function ottieniSettimanaCorrente(elemento) {
   // Ottieni il numero della settimana dall'attributo data-settimana
   const numeroSettimana = parseInt(elemento.dataset.settimana);
   const numeroGiorno = parseInt(elemento.dataset.giorno);
+  const giorniPerSettimana = getNumeroGiorniSettimana();
   
   // Ottieni la data di inizio dalle impostazioni
   const dataInizioStr = localStorage.getItem("dataSelezionata");
@@ -1200,7 +1392,7 @@ function ottieniSettimanaCorrente(elemento) {
   const dataCorrente = new Date(dataInizio);
   
   // Aggiungi i giorni per arrivare alla settimana e al giorno giusti
-  let giorniDaAggiungere = (numeroSettimana * 6) + numeroGiorno;
+  let giorniDaAggiungere = (numeroSettimana * giorniPerSettimana) + numeroGiorno;
   
   // Salta le domeniche che vengono saltate nel tuo codice
   let giorniAggiunti = 0;
@@ -1208,8 +1400,8 @@ function ottieniSettimanaCorrente(elemento) {
   
   while (giorniAggiunti < giorniDaAggiungere) {
     tempData.setDate(tempData.getDate() + 1);
-    // Salta le domeniche (getDay() === 0)
-    if (tempData.getDay() !== 0) {
+    // Salta i giorni non validi
+    if (isGiornoValido(tempData)) {
       giorniAggiunti++;
     }
   }
@@ -1221,10 +1413,9 @@ function ottieniSettimanaCorrente(elemento) {
 
 function appartieneSettimana(data, inizioSettimana) {
   const lunediSettimana = new Date(inizioSettimana);
-  const domenicaSettimana = new Date(lunediSettimana);
-  domenicaSettimana.setDate(domenicaSettimana.getDate() + 6);
+  const fineSettimana = getFineSettimana(lunediSettimana);
   
-  return data >= lunediSettimana && data <= domenicaSettimana;
+  return data >= lunediSettimana && data <= fineSettimana;
 }
 
 function getLunediSettimana(data) {
@@ -1254,7 +1445,9 @@ const contenitore = document.getElementById("risultati");
     return;
   }
 
-  const giorniNomi = ["", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
+  const giorniLabel = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
+  const giorniOrdine = getOrdineGiorniSettimana();
+  const giorniNomi = giorniOrdine.map(d => giorniLabel[d]);
   const orari = [8, 9, 10, 11, 12, 13];
   const mappa = {};
 
@@ -1269,11 +1462,11 @@ const contenitore = document.getElementById("risultati");
 
 
   const intestazione1 = document.createElement("tr");
-  intestazione1.innerHTML = `<th class="th-risultati" id="th-orarioclasse" colspan="7">Orario della classe ${classe}</th>`;
+  intestazione1.innerHTML = `<th class="th-risultati" id="th-orarioclasse" colspan="${giorniNomi.length + 1}">Orario della classe ${classe}</th>`;
 
   const intestazione = document.createElement("tr");
   intestazione.innerHTML = "<th>Ora</th>";
-  for (let g = 1; g <= 6; g++) {
+  for (let g = 0; g < giorniNomi.length; g++) {
     intestazione.innerHTML += `<th>${giorniNomi[g]}</th>`;
   }
   tabella.appendChild(intestazione1);
@@ -1282,10 +1475,10 @@ const contenitore = document.getElementById("risultati");
   orari.forEach(ora => {
     const tr = document.createElement("tr");
     tr.innerHTML = `<td>${ora}</td>`;
-    for (let g = 1; g <= 6; g++) {
+    for (let g = 0; g < giorniNomi.length; g++) {
       const td = document.createElement("td");
       td.classList.add("td-orario");
-      td.textContent = mappa[ora]?.[g] || "";
+      td.textContent = mappa[ora]?.[giorniOrdine[g]] || "";
       tr.appendChild(td);
     }
     tabella.appendChild(tr);
@@ -1306,7 +1499,6 @@ function mostraOrarioMateria(event) {
   const materiaValore = textareaMateria.value.trim();
   if (!materiaValore) return;
 
-  const settimanaTarget = textareaMateria.dataset.settimana;
   const orarioMateria = [];
 
   // Scorre tutto il localStorage per trovare materia e classe
@@ -1319,17 +1511,15 @@ function mostraOrarioMateria(event) {
     const [_, dataISO, oraStr] = match;
     const giornoSettimana = new Date(dataISO).getDay(); // 1 = lunedì, ..., 6 = sabato
 
-    if (giornoSettimana < 1 || giornoSettimana > 6) continue; // esclude domenica
+    if (!isGiornoValido(giornoSettimana)) continue;
 
     const materia = localStorage.getItem(chiave)?.trim();
     if (materia !== materiaValore) continue;
 
     // Verifica che sia della stessa settimana
-    const dataInizio = new Date(localStorage.getItem("dataSelezionata"));
-    const settimanaInizio = new Date(dataInizio);
-    settimanaInizio.setDate(dataInizio.getDate() + (parseInt(settimanaTarget) * 7));
-    const settimanaFine = new Date(settimanaInizio);
-    settimanaFine.setDate(settimanaFine.getDate() + 6);
+    const settimanaInizioISO = ottieniSettimanaCorrente(textareaMateria);
+    const settimanaInizio = new Date(settimanaInizioISO);
+    const settimanaFine = getFineSettimana(settimanaInizio);
 
     const dataMateria = new Date(dataISO);
     if (dataMateria < settimanaInizio || dataMateria > settimanaFine) continue;
@@ -1407,8 +1597,3 @@ function spostaRisultatiSeMobile() {
 }
 
 window.addEventListener("resize", spostaRisultatiSeMobile);
-
-
-
-
-
