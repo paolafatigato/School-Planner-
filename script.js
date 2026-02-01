@@ -1590,9 +1590,6 @@ function spostaRisultatiSeMobile() {
 
   if (isMobile && risultati && container) {
     container.parentNode.insertBefore(risultati, container); // sposta sopra
-    setTimeout(() => {
-      risultati.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 100); // leggero delay per sicurezza
   }
 }
 
