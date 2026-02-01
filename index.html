@@ -5,34 +5,70 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Calendario Scolastico</title>
   <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css' rel='stylesheet' />
-  <style>
-    body { font-family: sans-serif; padding: 20px; }
-    #calendar { max-width: 900px; margin: auto; }
-  </style>
-    <link rel="stylesheet" href="style.css">
+  
+  
+  <script src="cordova.js"></script>
+
+  <!-- ⭐ FIREBASE SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  
+
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-      <div id="grad1" class="gradiente grad1" style="opacity: 1;"></div>
-      <div id="grad2" class="gradiente" style="opacity: 0;"></div>
+  <div id="grad1" class="gradiente grad1" style="opacity: 1;"></div>
+  <div id="grad2" class="gradiente" style="opacity: 0;"></div>
+  
   <h1>Calendario</h1>
   <div id='calendar'></div>
 
-  <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js'> </script>
+  <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js'></script>
+  
+  <!-- ⭐ FIREBASE AUTH - DEVE ESSERE PRIMA DI SCRIPT.JS -->
+  <script src="firebase-auth-multiuser.js"></script>
+  <script src="script.js"></script>
   
   <script>
-  // 🔒 Reindirizza a setup.html se non hai ancora salvato le materie
- // if (!localStorage.getItem("materieInsegnate")) {
- //   window.location.href = "setup.html";
-  //}
-</script>
-  <script>
+    // Funzione per mostrare info utente e logout
+    function mostraInterfacciaUtente() {
+      // Rimuovi vecchi elementi se esistono
+      const vecchioLogout = document.getElementById('btn-logout');
+      const vecchioInfo = document.getElementById('user-info');
+      if (vecchioLogout) vecchioLogout.remove();
+      if (vecchioInfo) vecchioInfo.remove();
+      
+      // Controlla se c'è un utente autenticato
+      if (typeof currentUser !== 'undefined' && currentUser) {
+        // Info utente
+        const userInfo = document.createElement('div');
+        userInfo.id = 'user-info';
+        userInfo.innerHTML = `
+          <i class="fas fa-user"></i> ${currentUser.email}
+        `;
+        document.body.appendChild(userInfo);
+        
+        // Pulsante logout
+        const logoutBtn = document.createElement('button');
+        logoutBtn.id = 'btn-logout';
+        logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Logout';
+        logoutBtn.onclick = logout;
+        document.body.appendChild(logoutBtn);
+      }
+    }
+    
+    // Inizializza calendario
     document.addEventListener('DOMContentLoaded', function () {
       var calendarEl = document.getElementById('calendar');
       var calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
         locale: 'it',
-          firstDay: 1,
+        firstDay: 1,
+        height: 'auto',
+        contentHeight: 'auto',
+        expandRows: true,
         dateClick: function (info) {
           // Salva la data selezionata in localStorage
           localStorage.setItem('dataSelezionata', info.dateStr);
@@ -41,9 +77,21 @@
         }
       });
       calendar.render();
+      
+      // Mostra interfaccia utente dopo un breve ritardo
+      // per dare tempo a Firebase di caricare
+      setTimeout(mostraInterfacciaUtente, 500);
     });
+    
+    // Aggiorna interfaccia quando cambia lo stato di autenticazione
+    if (typeof firebase !== 'undefined' && firebase.auth) {
+      firebase.auth().onAuthStateChanged(function(user) {
+        if (user) {
+          setTimeout(mostraInterfacciaUtente, 100);
+        }
+      });
+    }
   </script>
-  <script src="script.js"></script>
 
 </body>
 </html>
